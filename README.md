@@ -10,7 +10,8 @@ This shader, at the time being, takes the following information for use in PBR s
 There are some additional features available to this shader, main of which is AudioLink, tied to the emission map.
 
 In the short term, I hope to acheive the following with this shader:
-~~- Casting onto reflection, light, and shadow maps~~
+
+- Casting onto reflection, light, and shadow maps (DONE)
 - First-bounce ray casting onto the shader for more accurate lighting
 - Implementing a shader properties addon
 
