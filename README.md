@@ -2,6 +2,8 @@
 A PBR-based shading solution for VRChat avatars.
 ===========
 
+Please support me on Gumroad! [Let's go!](https://flimsyfox.gumroad.com/l/VRC-PBR)
+
 This shader, at the time being, takes the following information for use in PBR shading:
 - Reflection maps
 - Light maps
