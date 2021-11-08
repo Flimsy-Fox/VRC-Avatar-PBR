@@ -3,8 +3,8 @@ A PBR-based shading solution for VRChat avatars.
 ===========
 
 This shader, at the time being, takes the following information for use in PBR shading:
-- The most dominant reflection cubemap
-- The most dominant light source
+- Reflection maps
+- Light maps
 - The skybox color
 
 There are some additional features available to this shader, main of which is AudioLink, tied to the emission map.
