@@ -15,9 +15,9 @@ In the short term, I hope to acheive the following with this shader:
 
 - Casting onto reflection, light, and shadow maps (DONE)
 - First-bounce ray casting onto the shader for more accurate lighting
-- Implementing a shader properties addon
+- Implementing a shader properties addon (DONE)
 
 I am tentative about adding the following features to this shader:
-- Displacement map support
+- Displacement map support (DONE?)
 - Refraction
 - Transmission
