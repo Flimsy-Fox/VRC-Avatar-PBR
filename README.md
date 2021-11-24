@@ -4,6 +4,9 @@ A PBR-based shading solution for VRChat avatars.
 
 Please support me on Gumroad! [Let's go!](https://flimsyfox.gumroad.com/l/VRC-PBR)
 
+NOTE: Shader may not appear correctly when Vulkan (the default graphics API on AMD GPUs) is being used. This issue is currently being resolved.
+----------------------------
+
 This shader, at the time being, takes the following information for use in PBR shading:
 - Reflection maps
 - Light maps
