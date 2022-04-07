@@ -1,5 +1,5 @@
 # VRC-Avatar-PBR
-A PBR-based shading solution for VRChat avatars.
+A MORE accurate shading solution for VRChat avatars!
 ===========
 
 Please support me on Gumroad! [Let's go!](https://flimsyfox.gumroad.com/l/VRC-PBR)
