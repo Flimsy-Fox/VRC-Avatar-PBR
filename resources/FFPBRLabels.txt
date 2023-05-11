@@ -1,0 +1,2 @@
+// Footer
+footer_github:={texture:{name:icon-github,height:32},action:{type:URL,data:https://github.com/Flimsy-Fox/VRC-Avatar-PBR/wiki},hover:Wiki}

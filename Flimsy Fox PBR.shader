@@ -4,7 +4,7 @@
     {
 		[HideInInspector] shader_is_using_thry_editor ("", Float) = 0
 		[HideInInspector] shader_master_label ("<color=#00ff00ff>Flimsy Fox PBR 1.1.0</color>", Float) = 0
-		[HideInInspector] shader_properties_label_file("FFPBRPoiLabels", Float) = 0
+		[HideInInspector] shader_properties_label_file("FFPBRLabels", Float) = 0
 
 		[HideInInspector] footer_github ("github footer button", Float) = 0
 		
@@ -84,7 +84,7 @@
 			#include "Lighting.cginc"
 			#include "AutoLight.cginc"
 			#include "UnityStandardUtils.cginc"
-			#include "resources/audio-link/Packages/com.llealloo.audiolink/Runtime/Shaders/AudioLink.cginc"
+			#include "resources/audio-link/Shaders/AudioLink.cginc"
 			#include "UnityLightingCommon.cginc"
 			
 			static const float PI = 3.14159265f;
