@@ -15,32 +15,37 @@
 		
 		[HideInInspector]m_start_Albedo("Albedo", Float) = 0
         _Color ("Color", Color) = (1,1,1,1)
-        _MainTex ("Albedo (RGB/RGBA)", 2D) = "white" {}
+        [NoScaleOffset] _Albedo ("Albedo (RGB/RGBA)", 2D) = "white" {}
 		[HideInInspector]m_end_Albedo("Albedo", Float) = 0
 		
 		[HideInInspector]m_start_Specular("Specular", Float) = 0
-        _Specular ("Specular (BW)", 2D) = "(1,1,1,1)" {}
+        [NoScaleOffset] _Specular ("Specular (BW)", 2D) = "(1,1,1,1)" {}
 		_SpecularMult("Multiply Specular", Range(0.0, 1.0)) = 1
 		_SpecularAdd ("Add Specular", Range(0.0, 1.0)) = 0
 		[HideInInspector]m_end_Specular("Specular", Float) = 0
 		
 		[HideInInspector]m_start_Roughness("Roughness", Float) = 0
-        _Roughness ("Roughness (BW)", 2D) = "(1,1,1,1)" {}
+        [NoScaleOffset] _Roughness ("Roughness (BW)", 2D) = "(1,1,1,1)" {}
 		_RoughnessMult ("Multiply Roughness", Range(0.0, 1.0)) = 1
 		_RoughnessAdd ("Add Roughness", Range(0.0, 1.0)) = 0
 		[HideInInspector]m_end_Roughness("Roughness", Float) = 0
 		
 		[HideInInspector]m_start_Normals("Normals", Float) = 0
-		_BumpMap ("Normal", 2D) = "(0,0,0,1)" {}
-		_Normal1 ("Normal 2", 2D) = "(0,0,0,1)" {}
-		[Toggle(_)] _MakeDisplacement ("Displacement map", Float) = 0
+		[Toggle(_)] _EnableBumpMap ("Enable Normal", Float) = 0
+		[NoScaleOffset] _BumpMap ("Normal", 2D) = "(0,0,0,1)" {}
+		[Toggle(_)] _EnableNormal1 ("Enable Normal 2", Float) = 0
+		[NoScaleOffset] _Normal1 ("Normal 2", 2D) = "(0,0,0,1)" {}
+		[HideInInspector]m_start_Height("Height Map", Float) = 0
+		[Toggle(_)] _EnableDisplacement ("Enable Displacement", Float) = 0
 		_DisplacementMult ("Distance (mm)", Float) = 0
+		[NoScaleOffset] _HeightMap ("Height Map", 2D) = "(0.5,0.5,0.5,1)" {}
+		[HideInInspector]m_end_Height("Height Map", Float) = 0
 		[HideInInspector]m_end_Normals("Normals", Float) = 0
 		
 		[HideInInspector]m_start_Emission("Emission", Float) = 0
 		_EmissionColor ("Emission Color", Color) = (1,1,1,1)
-		_Emission ("Emission (RGB)", 2D) = "none" {}
-		_EmissionMask ("Emission Mask (BW)", 2D) = "(1,1,1,1)" {}
+		[NoScaleOffset] _Emission ("Emission (RGB)", 2D) = "none" {}
+		[NoScaleOffset] _EmissionMask ("Emission Mask (BW)", 2D) = "(1,1,1,1)" {}
 		_EmissionStrength ("Emission Strength", Float) = 1
 		
 		[HideInInspector]m_start_Glow("Glow in the Dark", Float) = 0
@@ -57,6 +62,11 @@
 		_AudioLinkKey ("AudioLink Color Key", Color) = (0.5,0.5,0.5,1)
 		_AudioLinkKeyRange ("AudioLink Key Range", Range(0.0, 1.0)) = 0.5
 		[HideInInspector]m_end_AudioLink("AudioLink", Float) = 0
+
+		[HideInInspector]m_start_Fallback("Fallback", Float) = 0
+		[NoScaleOffset] _MainTex ("Texture", 2D) = "Black" {}
+		[NoScaleOffset] _OcclusionMap("Occlusion", 2D) = "white" {}
+		[HideInInspector]m_end_Fallback("Fallback", Float) = 0
     }
 	
 	CustomEditor "Thry.ShaderEditor"
@@ -100,8 +110,8 @@
 			int _EnableRefl;
 			
 			fixed4 _Color;
-			sampler2D _MainTex;
-			float4 _MainTex_ST;
+			sampler2D _Albedo;
+			float4 _Albedo_ST;
 			
 			sampler2D _Specular;
 			float _SpecularMult;
@@ -111,10 +121,13 @@
 			float _RoughnessMult;
 			float _RoughnessAdd;
 			
+			int _EnableBumpMap;
 			sampler2D _BumpMap;
+			int _EnableNormal1;
 			sampler2D _Normal1;
-			int _MakeDisplacement;
+			int _EnableDisplacement;
 			float _DisplacementMult;
+			sampler2D _HeightMap;
 			
 			fixed4 _EmissionColor;
 			sampler2D _Emission;
@@ -323,39 +336,9 @@
                 o.tspace0 = half3(wTangent.x, wBitangent.x, worldNormal.x);
                 o.tspace1 = half3(wTangent.y, wBitangent.y, worldNormal.y);
                 o.tspace2 = half3(wTangent.z, wBitangent.z, worldNormal.z);
-				/*
-				if(_MakeDisplacement)
-				{
-					fixed3 normal = UnpackNormal(float4(0.5,0.5,0.5,1));
-					//fixed3 baseNormal = UnpackNormal(float4(0.5,0.5,0.5,1));
-					fixed3 normalMap0 = tex2Dlod(_BumpMap, float4(v.uv, 0, 0));
-					fixed3 normalMap1 = tex2Dlod(_Normal1, float4(v.uv, 0, 0));
-					
-					int3 normal0Test = int3(normalMap0 * 255);
-					int3 normal1Test = int3(normalMap1 * 255);
-					
-					//normal = baseNormal;
-					
-					if(normal0Test.r != 55 || normal0Test.g != 55 
-						|| normal0Test.b != 55)
-					{
-						half3 normal0 = UnpackNormal(half4(normalMap0, 1));
-						normal = normalize(normal + normal0);
-					}
-					if(normal1Test.r != 55 || normal1Test.g != 55 
-						|| normal1Test.b != 55)
-					{
-						half3 normal1 = UnpackNormal(half4(normalMap1, 1));
-						normal = normalize(normal + normal1);
-					}
-					normal.x = dot(o.tspace0, normal);
-					normal.y = dot(o.tspace1, normal);
-					normal.z = dot(o.tspace2, normal);
-					
-					v.vertex.x += (normal.x - .5) * _DisplacementMult/1000;
-					v.vertex.y += (normal.y - .5) * _DisplacementMult/1000;
-					v.vertex.z += (normal.z - .5) * _DisplacementMult/1000;
-				}*/
+
+				fixed3 heightMap = tex2Dlod(_HeightMap, float4(v.uv, 0, 0));
+				v.vertex += (float4(v.normal, 0) - .5) * _DisplacementMult/1000 * _EnableDisplacement;
 				
 				o.tangent = v.tangent;
 				o.normal = v.normal;
@@ -385,90 +368,8 @@
 				float2 uv0 = input[0].uv;
 				float2 uv1 = input[1].uv;
 				float2 uv2 = input[2].uv;
-				/*
-				if(_MakeDisplacement)
-				{
-					Varyings inputDispl[3];
-					
-					//Normals
-					half3 normal = half3(0,0,0);
-					half3 normalAdd = half3(0,0,0);
-					half3 baseNormal = UnpackNormal(float4(0.5,0.5,1,1));
-					float3 ext[3];
-					for(int i = 0; i < input.Length; ++i)
-					{
-						inputDispl[i] = input[i];
-						float3 normal0Tex = tex2Dlod(_BumpMap, float4(input[i].uv, 0, 0));
-						float3 normal1Tex = tex2Dlod(_Normal1, float4(input[i].uv, 0, 0));
-						
-						//Convert normal textures to 0-255 ranges for easy testing
-						int3 normal0Test = int3(normal0Tex * 255);
-						int3 normal1Test = int3(normal1Tex * 255);
-						
-						normal = baseNormal;
-						
-						if(normal0Test.r != 55 || normal0Test.g != 55 
-							|| normal0Test.b != 55)
-						{
-							half3 normal0 = UnpackNormal(half4(normal0Tex, 1));
-							normal = normalize(normal + normal0);
-						}
-						if(normal1Test.r != 55 || normal1Test.g != 55 
-							|| normal1Test.b != 55)
-						{
-							half3 normal1 = UnpackNormal(half4(normal1Tex, 1));
-							normal = normalize(normal + normal1);
-						}
-						
-						inputDispl[i].normal.x = dot(inputDispl[i].tspace0, -normal);
-						inputDispl[i].normal.y = dot(inputDispl[i].tspace1, -normal);
-						inputDispl[i].normal.z = dot(inputDispl[i].tspace2, -normal);
-					}
-					
-					// Extrusion points
-					float3 wp3 = wp0 + (inputDispl[0].normal - 0.5) * _DisplacementMult/1000;
-					float3 wp4 = wp1 + (inputDispl[0].normal - 0.5) * _DisplacementMult/1000;
-					float3 wp5 = wp2 + (inputDispl[0].normal - 0.5) * _DisplacementMult/1000;
-					
-					// Original triangle
-					float3 wn = ConstructNormal(wp0, wp1, wp2);
-					outStream.Append(VertexOutput(input[0], wp0, wn, uv0));
-					outStream.Append(VertexOutput(input[1], wp1, wn, uv1));
-					outStream.Append(VertexOutput(input[2], wp2, wn, uv2));
-					outStream.RestartStrip();
-
-					// Side faces
-					wn = ConstructNormal(wp3, wp0, wp4);
-					outStream.Append(VertexOutput(input[0], wp3, wn, uv0));
-					outStream.Append(VertexOutput(input[0], wp0, wn, uv0));
-					outStream.Append(VertexOutput(input[1], wp4, wn, uv1));
-					outStream.Append(VertexOutput(input[1], wp1, wn, uv1));
-					outStream.RestartStrip();
-
-					wn = ConstructNormal(wp4, wp1, wp5);
-					outStream.Append(VertexOutput(input[1], wp4, wn, uv1));
-					outStream.Append(VertexOutput(input[1], wp1, wn, uv1));
-					outStream.Append(VertexOutput(input[2], wp5, wn, uv2));
-					outStream.Append(VertexOutput(input[2], wp2, wn, uv2));
-					outStream.RestartStrip();
-
-					wn = ConstructNormal(wp5, wp2, wp3);
-					outStream.Append(VertexOutput(input[2], wp5, wn, uv2));
-					outStream.Append(VertexOutput(input[2], wp2, wn, uv2));
-					outStream.Append(VertexOutput(input[0], wp3, wn, uv0));
-					outStream.Append(VertexOutput(input[0], wp0, wn, uv0));
-					outStream.RestartStrip();
-				}
-				else{
-					float3 wn = ConstructNormal(wp0, wp1, wp2);
-					
-					outStream.Append(VertexOutput(input[0], wp0, wn, uv0));
-					outStream.Append(VertexOutput(input[1], wp1, wn, uv1));
-					outStream.Append(VertexOutput(input[2], wp2, wn, uv2));
-					outStream.RestartStrip();
-				}*/
 				float3 wn = ConstructNormal(wp0, wp1, wp2);
-					
+				
 				outStream.Append(VertexOutput(input[0], wp0, wn, uv0));
 				outStream.Append(VertexOutput(input[1], wp1, wn, uv1));
 				outStream.Append(VertexOutput(input[2], wp2, wn, uv2));
@@ -489,37 +390,17 @@
 				_WorldPos = IN.worldPos;
 				
 				//Normals
-				half3 normal = half3(0,0,0);
-				half3 normalAdd = half3(0,0,0);
 				half3 baseNormal = UnpackNormal(float4(0.5,0.5,1,1));
-				float4 normal0Tex = tex2D(_BumpMap, IN.uv);
-				float4 normal1Tex = tex2D(_Normal1, IN.uv);
-				
-				//Convert normal textures to 0-255 ranges for easy testing
-				int4 normal0Test = int4(normal0Tex * 255);
-				int4 normal1Test = int4(normal1Tex * 255);
-				
-				normal = baseNormal;
-				
-				if(normal0Test.r != 55 || normal0Test.g != 55 
-					|| normal0Test.b != 55 || normal0Test.a != 128)
-				{
-					half3 normal0 = UnpackNormal(normal0Tex);
-					normal = normalize(normal + normal0);
-				}
-				if(normal1Test.r != 55 || normal1Test.g != 55 
-					|| normal1Test.b != 55 || normal1Test.a != 128)
-				{
-					half3 normal1 = UnpackNormal(normal1Tex);
-					normal = normalize(normal + normal1);
-				}
+				half3 normal0 = lerp(baseNormal, UnpackNormal(tex2D(_BumpMap, IN.uv)), _EnableBumpMap);
+				half3 normal1 = lerp(baseNormal, UnpackNormal(tex2D(_Normal1, IN.uv)), _EnableNormal1);
+				half3 normal = normalize(baseNormal + normal0 + normal1);
 				
 				uNormal.x = dot(IN.tspace0, normal);
 				uNormal.y = dot(IN.tspace1, normal);
 				uNormal.z = dot(IN.tspace2, normal);
 				
 				//Reflected light, color, and shadow calculations
-				origAlbedo = tex2D (_MainTex, IN.uv) * _Color;
+				origAlbedo = tex2D (_Albedo, IN.uv) * _Color;
 				float4 reflectionColor = float4(0,0,0,1);
 				float3 lighting = float3(0,0,0);
 				half2 lightMap = half2(0,0);
