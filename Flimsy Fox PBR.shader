@@ -94,7 +94,7 @@
 			#include "Lighting.cginc"
 			#include "AutoLight.cginc"
 			#include "UnityStandardUtils.cginc"
-			#include "resources/audio-link/Shaders/AudioLink.cginc"
+			#include "Assets/Flimsy Fox/Shaders/common/audio-link/Shaders/AudioLink.cginc"
 			#include "UnityLightingCommon.cginc"
 			
 			static const float PI = 3.14159265f;
