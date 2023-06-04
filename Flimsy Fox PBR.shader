@@ -10,8 +10,8 @@
 		
 		[HideInInspector] m_mainOptions("Shader Settings", Float) = 0
 		_NumSamples ("Number of samples", Range(1, 256)) = 128
-		_LightMult ("Lighting Multiplier", Range(0, 5)) = 1
-		[Toggle(_)]_EnableRefl ("Reflections Toggle", Float) = 1
+		[HideInInspector]_LightMult ("Lighting Multiplier", Range(0, 5)) = 1
+		[HideInInspector][Toggle(_)]_EnableRefl ("Reflections Toggle", Float) = 1
 		
 		[HideInInspector]m_start_Albedo("Albedo", Float) = 0
         _Color ("Color", Color) = (1,1,1,1)
@@ -20,15 +20,15 @@
 		
 		[HideInInspector]m_start_Specular("Specular", Float) = 0
         [NoScaleOffset] _Specular ("Specular (BW)", 2D) = "(1,1,1,1)" {}
-		_SpecularMult("Multiply Specular", Range(0.0, 1.0)) = 1
-		_SpecularAdd ("Add Specular", Range(0.0, 1.0)) = 0
+		_SpecularMult("Multiply", Range(0.0, 1.0)) = 1
+		_SpecularAdd ("Add", Range(0.0, 1.0)) = 0
 		[HideInInspector]m_end_Specular("Specular", Float) = 0
 		
 		[HideInInspector]m_start_Roughness("Roughness", Float) = 0
         [NoScaleOffset] _Roughness ("Roughness (BW)", 2D) = "(1,1,1,1)" {}
 		[Toggle(_)] _SmoothnessToggle ("As Smoothness Map", Float) = 0
-		_RoughnessMult ("Multiply Roughness", Range(0.0, 1.0)) = 1
-		_RoughnessAdd ("Add Roughness", Range(0.0, 1.0)) = 0
+		_RoughnessMult ("Multiply", Range(0.0, 1.0)) = 1
+		_RoughnessAdd ("Add", Range(0.0, 1.0)) = 0
 		[HideInInspector]m_end_Roughness("Roughness", Float) = 0
 		
 		[HideInInspector]m_start_Normals("Normals", Float) = 0
@@ -47,7 +47,7 @@
 		_EmissionColor ("Emission Color", Color) = (1,1,1,1)
 		[NoScaleOffset] _Emission ("Emission (RGB)", 2D) = "none" {}
 		[NoScaleOffset] _EmissionMask ("Emission Mask (BW)", 2D) = "(1,1,1,1)" {}
-		_EmissionStrength ("Emission Strength", Float) = 1
+		_EmissionStrength ("Emission Strength", Float) = 0
 		
 		[HideInInspector]m_start_Glow("Glow in the Dark", Float) = 0
 		[Toggle(_)] _GlowInTheDarkEnable ("Glow in the dark", Float) = 0
@@ -60,8 +60,10 @@
 		[Toggle(_)]_AudioLinkEnable ("Enable AudioLink", Float) = 0
 		[Enum(Local, 0, UV, 1)] _AudioLinkSpace("Coordinate Space", Float) = 0
 		_Height ("Height (Meters)", Float) = 2
+		[HideInInspector]m_start_AL_colorkey("Color Key", Float) = 0
 		_AudioLinkKey ("AudioLink Color Key", Color) = (0.5,0.5,0.5,1)
 		_AudioLinkKeyRange ("AudioLink Key Range", Range(0.0, 1.0)) = 0.5
+		[HideInInspector]m_end_AL_colorkey("Color Key", Float) = 0
 		[HideInInspector]m_end_AudioLink("AudioLink", Float) = 0
 
 		[HideInInspector]m_start_Fallback("Fallback", Float) = 0
