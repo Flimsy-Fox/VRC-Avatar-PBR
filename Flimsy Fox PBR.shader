@@ -58,8 +58,12 @@
 		[HideInInspector]m_start_AudioLink("AudioLink", Float) = 0
 		[HideInInspector]_AudioLink ("AudioLink Texture", 2D) = "black" {}
 		[Toggle(_)]_AudioLinkEnable ("Enable AudioLink", Float) = 0
-		[Enum(Local, 0, UV, 1)] _AudioLinkSpace("Coordinate Space", Float) = 0
+		[HideInInspector]m_start_coordSpace("Coordinate Settings", Float) = 0
+		[Enum(None, 0, Local, 1, UV, 3)] _AudioLinkSpace("Coordinate Space", Float) = 0
+		[Toggle(_)]_InvertALCoord("Invert", Float) = 0
+		[HideInInspector]m_end_coordSpace("Coordinate Settings", Float) = 0
 		_Height ("Height (Meters)", Float) = 2
+		[Enum(Bass, 0, LowMid, 1, LowHigh, 2, Treble, 3)] _ALBand("Audio Band", Float) = 0
 		[HideInInspector]m_start_AL_colorkey("Color Key", Float) = 0
 		_AudioLinkKey ("AudioLink Color Key", Color) = (0.5,0.5,0.5,1)
 		_AudioLinkKeyRange ("AudioLink Key Range", Range(0.0, 1.0)) = 0.5
@@ -140,6 +144,8 @@
 			
 			int _AudioLinkEnable;
 			int _AudioLinkSpace;
+			int _InvertALCoord;
+			int _ALBand;
 			float4 _AudioLinkKey;
 			float _AudioLinkKeyRange;
 			
@@ -160,6 +166,7 @@
 			struct vertexOutput
 			{
 				float3 worldPos : TEXCOORD0;
+				float3 localPos : TEXCOORD1;
 				float4 screenPos : TEXCOORD5;
 				SHADOW_COORDS(10)
 				UNITY_FOG_COORDS(15)
@@ -179,7 +186,7 @@
 			
 			float clampLoop(float input, float max)
 			{
-				return input % max;
+				return abs(input) % max;
 			}
 			
 			bool testRange(float f, float mid, float ran)
@@ -312,6 +319,7 @@
 				v.vertex += (float4(v.normal, 0) - .5) * _DisplacementMult/1000 * _EnableDisplacement;
 				
 				o.worldPos = mul(unity_ObjectToWorld, v.vertex);
+				o.localPos = v.vertex;
 				o.worldViewDir = normalize(UnityWorldSpaceViewDir(o.worldPos));
 
 				o.tangent = v.tangent;
@@ -406,12 +414,23 @@
 					testRange(emission.g, _AudioLinkKey.g, _AudioLinkKeyRange) &&
 					testRange(emission.b, _AudioLinkKey.b, _AudioLinkKeyRange))
 				{
-					if(_AudioLinkSpace == 0)
-						uPos = IN.worldPos - origin;
-					else if(_AudioLinkSpace == 1)
-						uPos = IN.uv.y;
-					audioLink = AudioLinkData( ALPASS_AUDIOLINK + uint2( 0, (uPos - IN.vertex).y/_Height * 4. ) ).rrrr;
-					emission.rgba *= audioLink;
+					uPos = IN.worldPos - origin;
+					audioLink = AudioLinkData( ALPASS_AUDIOLINK + uint2(3 - _ALBand, 0)).rrrr;
+
+					switch(_AudioLinkSpace)
+					{
+					case(0):
+					{
+						emission.rgba *= audioLink;
+						break;
+					}
+					case(1):
+					{
+						emission.rgba *= lerp((-IN.localPos.y + _Height/2)/_Height, 
+								1 - (-IN.localPos.y + _Height/2)/_Height, _InvertALCoord) < audioLink;
+						break;
+					}
+					}
 				}
 				emission *= _EmissionColor * _EmissionStrength;
 				
@@ -464,9 +483,8 @@
 				emission.b *= emissionMask.b;
 				
 				finalAlbedo += emission * emission.a * glowInTheDark;
-				/*finalAlbedo = float4(clampLoop(uPos.y/_Height, 1)
-					, clampLoop(uPos.y/_Height, 1)
-					,  clampLoop(uPos.y/_Height, 1), 1);*/
+				float ALheight = clampLoop((IN.localPos.y - 1.25)/2.25, 1);
+				//finalAlbedo = float4(ALheight, ALheight, ALheight, 1);
 				//finalAlbedo = float4(uNormal, 1);
 				
 				//POST PROCESSING and final calculations
