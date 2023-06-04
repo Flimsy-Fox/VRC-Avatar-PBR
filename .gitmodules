@@ -1,6 +1,0 @@
-[submodule "resources/audio-link"]
-	path = resources/audio-link
-	url = https://github.com/llealloo/vrc-udon-audio-link
-[submodule "resources/thry-editor"]
-	path = resources/thry-editor
-	url = https://github.com/Thryrallo/ThryEditor
