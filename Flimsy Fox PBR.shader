@@ -4,7 +4,7 @@
     {
 		[HideInInspector] shader_is_using_thry_editor ("", Float) = 0
 		[HideInInspector] shader_master_label ("<color=#00ff00ff>Flimsy Fox PBR 1.1.0</color>", Float) = 0
-		[HideInInspector] shader_properties_label_file("FFPBRLabels", Float) = 0
+		[HideInInspector] shader_properties_label_file("FFOXLabels", Float) = 0
 
 		[HideInInspector] footer_github ("github footer button", Float) = 0
 		
@@ -79,7 +79,6 @@
 	CustomEditor "Thry.ShaderEditor"
     SubShader
     {
-		//Blend SrcAlpha OneMinusSrcAlpha
 		Pass
 		{
 			Tags {"LightMode"="ForwardBase" "RenderType"="Transparent"}
@@ -252,18 +251,6 @@
 				return float3x3(tangent, binormal, normal);
 			}
 			
-			float3 SampleHemisphere(float3 normal, float alpha)
-			{
-				//Sample hemisphere, where alpha determines kind of sampling
-				float cosTheta = pow(rand(), 1.0f / (alpha + 1.0f));
-				float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
-				float phi = 2 * PI * rand();
-				float3 tangentSpaceDir = float3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
-				
-				// Transform direction to world space
-				return mul(tangentSpaceDir, GetTangentSpace(normal));
-			}
-			
 			float3 SampleHemisphere(float3 v, float3 normal, float alpha)
 			{
 				//Redefine variables for easy copy-paste ;P
@@ -399,7 +386,6 @@
 				lighting += DecodeLightmap (UNITY_SAMPLE_TEX2D(unity_Lightmap, IN.uvLM)) * _LightMult;
 				#endif
 				reflectionColor += float4(lighting, 0);
-				//reflectionColor = min(reflectionColor, 1);
 				
 				float4 specular = float4(tex2D (_Specular, IN.uv));
 				float4 smoothness = lerp(float4(tex2D (_Roughness, IN.uv)), 1 - float4(tex2D (_Roughness, IN.uv)), _SmoothnessToggle);
@@ -409,6 +395,8 @@
 				
 				emissionMask = float4(tex2D (_EmissionMask, IN.uv));
 				emission = float4(tex2D (_Emission, IN.uv));
+
+				//AudioLink
 				if(_AudioLinkEnable &&
 					testRange(emission.r, _AudioLinkKey.r, _AudioLinkKeyRange) &&
 					testRange(emission.g, _AudioLinkKey.g, _AudioLinkKeyRange) &&
@@ -434,10 +422,8 @@
 				}
 				emission *= _EmissionColor * _EmissionStrength;
 				
-				float4 finalAlbedo = float4(0,0,0,0);
-				float2 pos = IN.uv.xy;
-				
 				//PBR shading starts
+				float4 colorOut = float4(0,0,0,0);
 				float4 albedo = min(1.0f - specular, origAlbedo);
 				float specChance = energy(specular);
 				float diffChance = energy(albedo);
@@ -448,7 +434,6 @@
 				//Hit 1
 				for(int i = 0; i < _NumSamples; i++)
 				{
-					//_Seed += (IN.worldPos.x + IN.worldPos.y + IN.worldPos.z) * i;
 					float roulette = rand();
 					if(roulette < specChance)
 					{
@@ -456,22 +441,16 @@
 						float alpha = SmoothnessToPhongAlpha(smoothness);
 						float3 direction = SampleHemisphere(IN.worldViewDir, uNormal, alpha);
 						float f = (alpha + 2) / (alpha + 1);
-						finalAlbedo += (reflectionColor * (1.0f / specChance) * 
+					 colorOut += (reflectionColor * (1.0f / specChance) * 
 							specular * sdot(uNormal, direction, f))/_NumSamples;
-						
-						//finalAlbedo += float4(direction,1)/_NumSamples;
 					}
 					else
 					{
 						//Diffuse
-						finalAlbedo += (float4(lighting, 1) * (1.0f / diffChance) *
+					 	colorOut += (float4(lighting, 1) * (1.0f / diffChance) *
 							albedo)/_NumSamples;
-						//finalAlbedo += (origAlbedo)/_NumSamples;
 					}
 				}
-				
-				//Hit 2
-				//finalAlbedo *= float4(lighting, 1);
 				
 				float glowInTheDark;
 				if(_GlowInTheDarkEnable)
@@ -482,16 +461,13 @@
 				emission.g *= emissionMask.g;
 				emission.b *= emissionMask.b;
 				
-				finalAlbedo += emission * emission.a * glowInTheDark;
-				float ALheight = clampLoop((IN.localPos.y - 1.25)/2.25, 1);
-				//finalAlbedo = float4(ALheight, ALheight, ALheight, 1);
-				//finalAlbedo = float4(uNormal, 1);
+			 	colorOut += emission * emission.a * glowInTheDark;
 				
 				//POST PROCESSING and final calculations
-				UNITY_APPLY_FOG(IN.fogCoord, finalAlbedo);
-				finalAlbedo.a = origAlbedo.a;
+				UNITY_APPLY_FOG(IN.fogCoord, colorOut);
+			 	colorOut.a = origAlbedo.a;
 				
-				return fixed4(finalAlbedo);
+				return fixed4(colorOut);
 			}
 			ENDCG
 		}
