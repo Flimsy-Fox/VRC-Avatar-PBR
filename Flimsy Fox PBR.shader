@@ -26,6 +26,7 @@
 		
 		[HideInInspector]m_start_Roughness("Roughness", Float) = 0
         [NoScaleOffset] _Roughness ("Roughness (BW)", 2D) = "(1,1,1,1)" {}
+		[Toggle(_)] _SmoothnessToggle ("As Smoothness Map", Float) = 0
 		_RoughnessMult ("Multiply Roughness", Range(0.0, 1.0)) = 1
 		_RoughnessAdd ("Add Roughness", Range(0.0, 1.0)) = 0
 		[HideInInspector]m_end_Roughness("Roughness", Float) = 0
@@ -83,8 +84,6 @@
 			CGPROGRAM
 
 			#pragma vertex vert
-			#pragma require geometry
-			#pragma geometry Geometry
 			#pragma fragment frag
 			#pragma glsl
 			#pragma target 3.0
@@ -95,7 +94,6 @@
 			#include "AutoLight.cginc"
 			#include "UnityStandardUtils.cginc"
 			#include "Assets/Flimsy Fox/Shaders/common/audio-link/Shaders/AudioLink.cginc"
-			#include "UnityLightingCommon.cginc"
 			
 			static const float PI = 3.14159265f;
 			float test = 232e-9;
@@ -118,6 +116,7 @@
 			float _SpecularAdd;
 			
 			sampler2D _Roughness;
+			float _SmoothnessToggle;
 			float _RoughnessMult;
 			float _RoughnessAdd;
 			
@@ -156,7 +155,7 @@
 				float2 texcoord1 : TEXCOORD1;
 			};
 			
-			struct Varyings
+			struct vertexOutput
 			{
 				float3 worldPos : TEXCOORD0;
 				float4 screenPos : TEXCOORD5;
@@ -291,39 +290,9 @@
 				return pow(1000.0f, s * s);
 			}
 			
-			Varyings VertexOutput(Varyings o, float3 wpos, half3 wnrm, float2 uv)
+			vertexOutput vert(appdata v)
 			{
-				//Varyings o;
-				//UNITY_INITIALIZE_OUTPUT(Varyings, o);
-
-			#if defined(PASS_CUBE_SHADOWCASTER)
-				// Cube map shadow caster pass: Transfer the shadow vector.
-				o.position = UnityWorldToClipPos(float4(wpos, 1));
-				o.shadow = wpos - _LightPositionRange.xyz;
-
-			#elif defined(UNITY_PASS_SHADOWCASTER)
-				// Default shadow caster pass: Apply the shadow bias.
-				float scos = dot(wnrm, normalize(UnityWorldSpaceLightDir(wpos)));
-				wpos -= wnrm * unity_LightShadowBias.z * sqrt(1 - scos * scos);
-				o.position = UnityApplyLinearShadowBias(UnityWorldToClipPos(float4(wpos, 1)));
-
-			#else
-				// GBuffer construction pass
-				o.worldPos = float4(wpos, 1);
-				o.vertex = UnityWorldToClipPos(float4(wpos, 1));
-				o.worldViewDir = normalize(UnityWorldSpaceViewDir(mul(unity_ObjectToWorld, o.worldPos)));
-				o.uv = uv;
-				
-				//Calculate normals
-				o.normal = wnrm;
-
-			#endif
-				return o;
-			}
-			
-			Varyings vert(appdata v)
-			{
-				Varyings o;
+				vertexOutput o;
 				o.uv = v.uv;
 				
                 // world space normal
@@ -340,9 +309,12 @@
 				fixed3 heightMap = tex2Dlod(_HeightMap, float4(v.uv, 0, 0));
 				v.vertex += (float4(v.normal, 0) - .5) * _DisplacementMult/1000 * _EnableDisplacement;
 				
+				o.worldPos = mul(unity_ObjectToWorld, v.vertex);
+				o.worldViewDir = normalize(UnityWorldSpaceViewDir(o.worldPos));
+
 				o.tangent = v.tangent;
 				o.normal = v.normal;
-				o.vertex = v.vertex;
+				o.vertex = UnityObjectToClipPos(v.vertex);
 				o.screenPos = ComputeScreenPos(o.vertex);
 				UNITY_TRANSFER_FOG(o,o.vertex);
 				#ifndef LIGHTMAP_OFF
@@ -353,30 +325,7 @@
 				return o;
 			}
 			
-			[maxvertexcount(15)]
-			void Geometry(
-				triangle Varyings input[3], uint pid : SV_PrimitiveID,
-				inout TriangleStream<Varyings> outStream
-			)
-			{
-				// Vertex inputs
-				
-				float3 wp0 = mul(unity_ObjectToWorld, input[0].vertex).xyz;
-				float3 wp1 = mul(unity_ObjectToWorld, input[1].vertex).xyz;
-				float3 wp2 = mul(unity_ObjectToWorld, input[2].vertex).xyz;
-
-				float2 uv0 = input[0].uv;
-				float2 uv1 = input[1].uv;
-				float2 uv2 = input[2].uv;
-				float3 wn = ConstructNormal(wp0, wp1, wp2);
-				
-				outStream.Append(VertexOutput(input[0], wp0, wn, uv0));
-				outStream.Append(VertexOutput(input[1], wp1, wn, uv1));
-				outStream.Append(VertexOutput(input[2], wp2, wn, uv2));
-				outStream.RestartStrip();
-			}
-			
-			fixed4 frag(Varyings IN) : COLOR
+			fixed4 frag (vertexOutput IN) : COLOR
 			{
 				float4 origAlbedo;
 				float4 emission;
@@ -443,10 +392,10 @@
 				//reflectionColor = min(reflectionColor, 1);
 				
 				float4 specular = float4(tex2D (_Specular, IN.uv));
-				float4 roughness = float4(tex2D (_Roughness, IN.uv));
+				float4 smoothness = lerp(float4(tex2D (_Roughness, IN.uv)), 1 - float4(tex2D (_Roughness, IN.uv)), _SmoothnessToggle);
 				
 				specular = min(specular * _SpecularMult + _SpecularAdd, 1);
-				float4 smoothness = 1 - (roughness * _RoughnessMult + _RoughnessAdd);
+				smoothness *= _RoughnessMult + _RoughnessAdd;
 				
 				emissionMask = float4(tex2D (_EmissionMask, IN.uv));
 				emission = float4(tex2D (_Emission, IN.uv));
