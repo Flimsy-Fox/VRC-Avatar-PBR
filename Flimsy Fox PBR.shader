@@ -352,45 +352,16 @@
 				origAlbedo = tex2D (_Albedo, IN.uv) * _Color;
 				float4 reflectionColor = float4(0,0,0,1);
 				float3 lighting = float3(0,0,0);
-				half2 lightMap = half2(0,0);
 				if(_EnableRefl == 1)
 				{
 					reflectionColor = UNITY_SAMPLE_TEXCUBE (unity_SpecCube0, uNormal);
 					reflectionColor = float4(DecodeHDR(half4(reflectionColor), unity_SpecCube0_HDR), reflectionColor.w);
 				}
-				
-				float3 vertexLighting = float3(0.0, 0.0, 0.0);
-				for (int index = 0; index < 4; index++)
-				{  
-					float4 lightPosition = float4(unity_4LightPosX0[index], 
-					 unity_4LightPosY0[index], 
-					 unity_4LightPosZ0[index], 1.0);
-			 
-					float3 vertexToLightSource = 
-					 lightPosition.xyz - IN.worldPos.xyz;    
-					float squaredDistance = 
-					 dot(vertexToLightSource, vertexToLightSource);
-					float attenuation = 1.0 / (1.0 + 
-					 unity_4LightAtten0[index] * squaredDistance);
-					float3 diffuseLighting = (attenuation 
-					 * unity_LightColor[index].rgb);     
-			 
-					vertexLighting = 
-					 vertexLighting + diffuseLighting;
-				}
-				
-				half nl = max(0, dot(uNormal, _WorldSpaceLightPos0.xyz));
-				
-				lighting = vertexLighting * nl * _LightMult;
-				//lighting = light
 
-				lighting *= SHADOW_ATTENUATION(IN);
-				lighting += ShadeSH9(half4(uNormal,1)) * _LightMult;
-
-				//lighting += DecodeLightmap (UNITY_SAMPLE_TEX2D(unity_Lightmap, IN.ambientoruvLM)) * _LightMult;
 				//Lightmap
 				half3 ambient;
 				half4 lightmapUV;
+				float4 lightmapColor = float4(0,0,0,0);
 				#if defined(LIGHTMAP_ON) || defined(DYNAMICLIGHTMAP_ON)
 					ambient = 0;
 					lightmapUV = IN.ambientoruvLM;
@@ -403,9 +374,9 @@
 					half3 bakedColor = DecodeLightmap(bakedColorTex);
 					#ifdef DIRLIGHTMAP_COMBINED
 						fixed4 bakedDirTex = UNITY_SAMPLE_TEX2D_SAMPLER(unity_LightmapInd, unity_Lightmap, lightmapUV.xy);
-						lighting += DecodeDirectionalLightmap(bakedColor, bakedDirTex, uNormal);
+						lightmapColor += DecodeDirectionalLightmap(bakedColor, bakedDirTex, uNormal);
 					#else
-						lighting += bakedColor;
+						lightmapColor += bakedColor;
 					#endif
 				#endif
 				#ifdef DYNAMICLIGHTMAP_ON
@@ -413,9 +384,9 @@
 					half3 realtimeColor = DecodeRealtimeLightmap(realtimeColorTex);
 					#ifdef DIRLIGHTMAP_COMBINED
 						half4 realtimeDirTex = UNITY_SAMPLE_TEX2D_SAMPLER(unity_DynamicDirectionality, unity_DynamicLightmap, lightmapUV.zw);
-						lighting += DecodeDirectionalLightmap(realtimeColor, realtimeDirTex, uNormal);
+						lightmapColor += DecodeDirectionalLightmap(realtimeColor, realtimeDirTex, uNormal);
 					#else
-						lighting += realtimeColor;
+						lightmapColor += realtimeColor;
 					#endif
 				#endif
 
@@ -461,6 +432,8 @@
 				
 				//PBR shading starts
 				float4 colorOut = float4(0,0,0,0);
+				float4 specular = 0;
+				float4 diffuse = 0;
 				float4 albedo = min(1.0f - specular, origAlbedo);
 				float specChance = energy(specular);
 				float diffChance = energy(albedo);
@@ -472,22 +445,51 @@
 				for(int i = 0; i < _NumSamples; i++)
 				{
 					float roulette = rand();
+					float alpha = SmoothnessToPhongAlpha(smoothness);
+					float3 direction = SampleHemisphere(IN.worldViewDir, uNormal, alpha);
+					float f = (alpha + 2) / (alpha + 1);
+
+					float3 lightDir, lightIntensity;
 					if(roulette < specChance)
 					{
 						//Specular
-						float alpha = SmoothnessToPhongAlpha(smoothness);
-						float3 direction = SampleHemisphere(IN.worldViewDir, uNormal, alpha);
-						float f = (alpha + 2) / (alpha + 1);
-					 colorOut += (reflectionColor * (1.0f / specChance) * 
-							specular * sdot(uNormal, direction, f))/_NumSamples;
+						colorOut += (reflectionColor * (1.0f / specChance) * 
+							specular * sdot(uNormal, direction, f));
 					}
+					//Diffuse
 					else
 					{
-						//Diffuse
-					 	colorOut += (float4(lighting, 1) * (1.0f / diffChance) *
-							albedo)/_NumSamples;
+						//Point Lights
+						for (int index = 0; index < 4; index++)
+						{  
+							float4 lightPosition = float4(unity_4LightPosX0[index], 
+							unity_4LightPosY0[index], 
+							unity_4LightPosZ0[index], 1.0);
+					
+							float3 lightDir = 
+							normalize(lightPosition.xyz - IN.worldPos.xyz);     
+							lightIntensity = unity_LightColor[index].rgb;
+
+							diffuse += (origAlbedo * float4(lightIntensity,1) *
+								max(0.0f, dot(-uNormal, -lightDir)));
+							float3 R = reflect(lightDir, uNormal);
+							specular += float4(lightIntensity,1) * pow(max(0.0f, dot(R,)))
+						}
+
+						//Lightmap
+						lightIntensity = lightmapColor;
+						lightDir = uNormal;
+						diffuse += (origAlbedo * float4(lightIntensity,1) *
+							max(0.0f, dot(-uNormal, -lightDir)));
+
+						//Cubemap
+						lightIntensity = reflectionColor;
+						lightDir = uNormal;
+						diffuse += (origAlbedo * (lightIntensity.r,lightIntensity.g,lightIntensity.b)/3 *
+							max(0.0f, dot(-uNormal, -lightDir)));
 					}
 				}
+				colorOut /= _NumSamples;
 				
 				float glowInTheDark;
 				if(_GlowInTheDarkEnable)
