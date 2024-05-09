@@ -387,7 +387,40 @@
 				lighting *= SHADOW_ATTENUATION(IN);
 				lighting += ShadeSH9(half4(uNormal,1)) * _LightMult;
 
-				lighting += DecodeLightmap (UNITY_SAMPLE_TEX2D(unity_Lightmap, IN.ambientoruvLM)) * _LightMult;
+				//lighting += DecodeLightmap (UNITY_SAMPLE_TEX2D(unity_Lightmap, IN.ambientoruvLM)) * _LightMult;
+				//Lightmap
+				half3 ambient;
+				half4 lightmapUV;
+				#if defined(LIGHTMAP_ON) || defined(DYNAMICLIGHTMAP_ON)
+					ambient = 0;
+					lightmapUV = IN.ambientoruvLM;
+				#else
+					ambient = IN.ambientoruvLM.rgb;
+					lightmapUV = 0;
+				#endif
+				#if defined(LIGHTMAP_ON)
+					half4 bakedColorTex = UNITY_SAMPLE_TEX2D(unity_Lightmap, lightmapUV.xy);
+					half3 bakedColor = DecodeLightmap(bakedColorTex);
+					#ifdef DIRLIGHTMAP_COMBINED
+						fixed4 bakedDirTex = UNITY_SAMPLE_TEX2D_SAMPLER(unity_LightmapInd, unity_Lightmap, lightmapUV.xy);
+						lighting += DecodeDirectionalLightmap(bakedColor, bakedDirTex, uNormal);
+					#else
+						lighting += bakedColor;
+					#endif
+				#endif
+				#ifdef DYNAMICLIGHTMAP_ON
+					fixed4 realtimeColorTex = UNITY_SAMPLE_TEX2D(unity_DynamicLightmap, lightmapUV.zw);
+					half3 realtimeColor = DecodeRealtimeLightmap(realtimeColorTex);
+					#ifdef DIRLIGHTMAP_COMBINED
+						half4 realtimeDirTex = UNITY_SAMPLE_TEX2D_SAMPLER(unity_DynamicDirectionality, unity_DynamicLightmap, lightmapUV.zw);
+						lighting += DecodeDirectionalLightmap(realtimeColor, realtimeDirTex, uNormal);
+					#else
+						lighting += realtimeColor;
+					#endif
+				#endif
+
+
+
 
 				reflectionColor += float4(lighting, 0);
 				
