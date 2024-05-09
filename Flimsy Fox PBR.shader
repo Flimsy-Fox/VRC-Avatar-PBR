@@ -113,7 +113,7 @@
 			float _UberVolumetricMode;
 			int _EnableRefl;
 			
-			fixed4 _Color;
+			//fixed4 _Color;
 			sampler2D _Albedo;
 			float4 _Albedo_ST;
 			
@@ -127,14 +127,14 @@
 			float _RoughnessAdd;
 			
 			int _EnableBumpMap;
-			sampler2D _BumpMap;
+			//sampler2D _BumpMap;
 			int _EnableNormal1;
 			sampler2D _Normal1;
 			int _EnableDisplacement;
 			float _DisplacementMult;
 			sampler2D _HeightMap;
 			
-			fixed4 _EmissionColor;
+			//fixed4 _EmissionColor;
 			sampler2D _Emission;
 			sampler2D _EmissionMask;
 			float _EmissionStrength;
@@ -171,7 +171,7 @@
 				SHADOW_COORDS(10)
 				UNITY_FOG_COORDS(15)
 				float2 uv : TEXCOORD20;
-				half4 ambientoruvLM : TEXCOORD1;
+				half4 ambientoruvLM : TEXCOORD10;
 				float4 tangent : TANGENT;
 				half3 tspace0 : TEXCOORD30; 
                 half3 tspace1 : TEXCOORD40; 
@@ -314,8 +314,12 @@
 				o.screenPos = ComputeScreenPos(o.vertex);
 				UNITY_TRANSFER_FOG(o,o.vertex);
 
+				VertexInput unityAppdata;
+				unityAppdata.vertex = v.vertex;
+				unityAppdata.normal = v.normal;
+				unityAppdata.uv0 = v.uv;
 				float3 vertexWorldNormal = UnityObjectToWorldNormal(v.normal);
-				o.ambientoruvLM = VertexGIForward(v, o.worldPos, vertexWorldNormal);
+				o.ambientoruvLM = VertexGIForward(unityAppdata, o.worldPos, vertexWorldNormal);
 				
 				TRANSFER_SHADOW(o)
 				return o;
