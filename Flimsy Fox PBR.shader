@@ -432,8 +432,8 @@
 				
 				//PBR shading starts
 				float4 colorOut = float4(0,0,0,0);
-				float4 specular = 0;
-				float4 diffuse = 0;
+				float4 specularOut = 0;
+				float4 diffuseOut = 0;
 				float4 albedo = min(1.0f - specular, origAlbedo);
 				float specChance = energy(specular);
 				float diffChance = energy(albedo);
@@ -470,26 +470,26 @@
 							normalize(lightPosition.xyz - IN.worldPos.xyz);     
 							lightIntensity = unity_LightColor[index].rgb;
 
-							diffuse += (origAlbedo * float4(lightIntensity,1) *
+							diffuseOut += (origAlbedo * float4(lightIntensity,1) *
 								max(0.0f, dot(-uNormal, -lightDir)));
-							float3 R = reflect(lightDir, uNormal);
-							specular += float4(lightIntensity,1) * pow(max(0.0f, dot(R,)))
+							//float3 R = reflect(lightDir, uNormal);
+							//specular += float4(lightIntensity,1) * pow(max(0.0f, dot(R,)))
 						}
 
 						//Lightmap
 						lightIntensity = lightmapColor;
 						lightDir = uNormal;
-						diffuse += (origAlbedo * float4(lightIntensity,1) *
+						diffuseOut += (origAlbedo * float4(lightIntensity,1) *
 							max(0.0f, dot(-uNormal, -lightDir)));
 
 						//Cubemap
 						lightIntensity = reflectionColor;
 						lightDir = uNormal;
-						diffuse += (origAlbedo * (lightIntensity.r,lightIntensity.g,lightIntensity.b)/3 *
+						diffuseOut += (origAlbedo * (lightIntensity.r,lightIntensity.g,lightIntensity.b)/3 *
 							max(0.0f, dot(-uNormal, -lightDir)));
 					}
 				}
-				colorOut /= _NumSamples;
+				colorOut = (diffuseOut+specularOut)/_NumSamples;
 				
 				float glowInTheDark;
 				if(_GlowInTheDarkEnable)
