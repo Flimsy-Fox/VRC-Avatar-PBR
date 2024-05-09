@@ -96,6 +96,7 @@
 			#pragma multi_compile LIGHTMAP_OFF LIGHTMAP_ON
 			#include "UnityCG.cginc"
 			#include "Lighting.cginc"
+			#include "UnityStandardCore.cginc"
 			#include "AutoLight.cginc"
 			#include "UnityStandardUtils.cginc"
 			#include "Assets/Flimsy Fox/Shaders/common/audio-link/Shaders/AudioLink.cginc"
@@ -170,9 +171,7 @@
 				SHADOW_COORDS(10)
 				UNITY_FOG_COORDS(15)
 				float2 uv : TEXCOORD20;
-				#ifndef LIGHTMAP_OFF
-				half2 uvLM : TEXCOORD1;
-				#endif 
+				half4 ambientoruvLM : TEXCOORD1;
 				float4 tangent : TANGENT;
 				half3 tspace0 : TEXCOORD30; 
                 half3 tspace1 : TEXCOORD40; 
@@ -314,9 +313,9 @@
 				o.vertex = UnityObjectToClipPos(v.vertex);
 				o.screenPos = ComputeScreenPos(o.vertex);
 				UNITY_TRANSFER_FOG(o,o.vertex);
-				#ifndef LIGHTMAP_OFF
-				o.uvLM = v.texcoord1.xy * unity_LightmapST.xy + unity_LightmapST.zw;
-				#endif
+
+				float3 vertexWorldNormal = UnityObjectToWorldNormal(v.normal);
+				o.ambientoruvLM = VertexGIForward(v, o.worldPos, vertexWorldNormal);
 				
 				TRANSFER_SHADOW(o)
 				return o;
@@ -379,12 +378,13 @@
 				half nl = max(0, dot(uNormal, _WorldSpaceLightPos0.xyz));
 				
 				lighting = vertexLighting * nl * _LightMult;
-				
+				//lighting = light
+
 				lighting *= SHADOW_ATTENUATION(IN);
 				lighting += ShadeSH9(half4(uNormal,1)) * _LightMult;
-				#ifndef LIGHTMAP_OFF
-				lighting += DecodeLightmap (UNITY_SAMPLE_TEX2D(unity_Lightmap, IN.uvLM)) * _LightMult;
-				#endif
+
+				lighting += DecodeLightmap (UNITY_SAMPLE_TEX2D(unity_Lightmap, IN.ambientoruvLM)) * _LightMult;
+
 				reflectionColor += float4(lighting, 0);
 				
 				float4 specular = float4(tex2D (_Specular, IN.uv));
