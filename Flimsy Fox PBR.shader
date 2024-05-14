@@ -444,9 +444,7 @@
 				emission *= _EmissionColor * _EmissionStrength;
 				
 				//PBR shading starts
-				float4 colorOut = float4(0,0,0,0);
-				float4 specularOut = 0;
-				float4 diffuseOut = 0;
+				float3 colorOut = float4(0,0,0,0);
 				float4 albedo = min(1.0f - specular, origAlbedo);
 				float specChance = energy(specular);
 				float diffChance = energy(albedo);
@@ -499,21 +497,21 @@
 						{
 							if(sphereIntersect(IN.worldPos, direction, pointLightPosition[index], pointLightSize[index]).y >= 0)
 							{
-								colorOut += (float4(pointLightIntensity[index], 1) * (1.0f / specChance) * 
+								colorOut += (pointLightIntensity[index] * (1.0f / specChance) * 
 									specular * sdot(uNormal, direction, f));
 							}
 						}
 						//Light Map
 						if(sphereIntersect(IN.worldPos, direction, lightMapPosition, lightMapSize).y >= 0)
 						{
-							colorOut += (float4(lightMapIntensity, 1) * (1.0f / specChance) * 
+							colorOut += (lightMapIntensity * (1.0f / specChance) * 
 								specular * sdot(uNormal, direction, f));
 						}
 						//Cube Map
 						
 						if(sphereIntersect(IN.worldPos, direction, cubeMapPosition, cubeMapSize).y >= 0.0f)
 						{
-							colorOut += (float4(cubeMapIntensity, 1) * (1.0f / specChance) * 
+							colorOut += (cubeMapIntensity * (1.0f / specChance) * 
 								specular * sdot(uNormal, direction, f));
 						}
 					}
@@ -525,21 +523,21 @@
 						{
 							if(sphereIntersect(IN.worldPos, direction, pointLightPosition[index], pointLightSize[index]).y >= 0)
 							{
-								colorOut += (float4(pointLightIntensity[index], 1) * (1.0f / diffChance) *
+								colorOut += (pointLightIntensity[index] * (1.0f / diffChance) *
 									albedo);
 							}
 						}
 						//Light Map
 						if(sphereIntersect(IN.worldPos, direction, lightMapPosition, lightMapSize).y >= 0)
 						{
-							colorOut += (float4(lightMapIntensity, 1) * (1.0f / diffChance) *
+							colorOut += (lightMapIntensity * (1.0f / diffChance) *
 								albedo);
 						}
 						//Cube Map
 						
 						if(sphereIntersect(IN.worldPos, direction, cubeMapPosition, cubeMapSize).y >= 0.0f)
 						{
-							colorOut += (float4(cubeMapIntensity, 1) * (1.0f / diffChance) *
+							colorOut += (cubeMapIntensity * (1.0f / diffChance) *
 								albedo);
 						}
 						//colorOut += float4(pointLightIntensity[0].rgb, 1);
@@ -560,10 +558,10 @@
 				
 				//POST PROCESSING and final calculations
 				UNITY_APPLY_FOG(IN.fogCoord, colorOut);
-			 	colorOut.a = origAlbedo.a;
+			 	//colorOut.a = origAlbedo.a;
 				//colorOut = float4(IN.worldViewDir, 1);
 				
-				return fixed4(colorOut);
+				return fixed4(colorOut, origAlbedo.a);
 			}
 			ENDCG
 		}
