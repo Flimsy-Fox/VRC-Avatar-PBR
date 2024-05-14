@@ -281,6 +281,17 @@
 				
 				return Nh;
 			}
+
+			float2 sphereIntersect( in float3 ro, in float3 rd, in float3 ce, float ra )
+			{
+				float3 oc = ro - ce;
+				float b = dot( oc, rd );
+				float3 qc = oc - b*rd;
+				float h = ra*ra - dot( qc, qc );
+				if( h<0.0 ) return float2(-1.0, -1.0); // no intersection
+				h = sqrt( h );
+				return float2( -b-h, -b+h );
+			}
 			
 			float SmoothnessToPhongAlpha(float s)
 			{
@@ -466,18 +477,18 @@
 						unity_4LightPosY0[index], 
 						unity_4LightPosZ0[index]);    
 						pointLightIntensity[index] = unity_LightColor[index].rgb;
-						pointLightSize[index] = 0.01; //TODO: get actual light size
+						pointLightSize[index] = 1; //TODO: get actual light size
 
 					}
 
 					//Lightmap
-					lightMapIntensity = lightmapColor;
+					lightMapIntensity = lightmapColor.rgb;
 					lightMapPosition = IN.worldPos;
 					lightMapSize = 0.1; //TODO: get actual light map size
 
 					//Cubemap
 					cubeMapIntensity = (reflectionColor.r+reflectionColor.g+reflectionColor.b)/3;
-					cubeMapPosition = IN.worldPos + uNormal*500; //INVESTIGATE: is there a better way to get CubeMap distance in a PBR manner?
+					cubeMapPosition = IN.worldPos + direction*500; //INVESTIGATE: is there a better way to get CubeMap distance in a PBR manner?
 					cubeMapSize = IN.screenPos.w;
 
 					if(roulette < specChance)
@@ -489,10 +500,32 @@
 					//Diffuse
 					else
 					{
+						//Point Lights
+						for(int index = 0; index < 4; index++)
+						{
+							if(sphereIntersect(IN.worldPos, direction, pointLightPosition[index], pointLightSize[index]).y >= 0)
+							{
+								colorOut += (float4(pointLightIntensity[index], 1) * (1.0f / diffChance) *
+									albedo);
+							}
+						}
+						//Light Map
+						if(sphereIntersect(IN.worldPos, direction, lightMapPosition, lightMapSize).y >= 0)
+						{
+							colorOut += (float4(lightMapIntensity, 1) * (1.0f / diffChance) *
+								albedo);
+						}
+						//Cube Map
 						
+						if(sphereIntersect(IN.worldPos, direction, cubeMapPosition, cubeMapSize).y >= 0.0f)
+						{
+							colorOut += (float4(cubeMapIntensity, 1) * (1.0f / diffChance) *
+								albedo);
+						}
+						//colorOut += float4(pointLightIntensity[0].rgb, 1);
 					}
 				}
-				colorOut = (diffuseOut+specularOut)/_NumSamples;
+				colorOut /= _NumSamples;
 				
 				float glowInTheDark;
 				if(_GlowInTheDarkEnable)
