@@ -1,4 +1,4 @@
-﻿Shader "Flimsy Fox/PBR 1.1.1 Opaque"
+﻿Shader "Flimsy Fox/PBR 1.3.0a Opaque"
 {
     Properties
     {
@@ -387,7 +387,7 @@
 					half3 bakedColor = DecodeLightmap(bakedColorTex);
 					#ifdef DIRLIGHTMAP_COMBINED
 						fixed4 bakedDirTex = UNITY_SAMPLE_TEX2D_SAMPLER(unity_LightmapInd, unity_Lightmap, lightmapUV.xy);
-						lightmapColor += DecodeDirectionalLightmap(bakedColor, bakedDirTex, uNormal);
+						lightmapColor += DecodeDirectionalLightmap(bakedColor, bakedDirTex, uNormal); //TODO: get normal from ray tracing instead
 					#else
 						lightmapColor += bakedColor;
 					#endif
@@ -494,9 +494,6 @@
 					//Trace
 					if(roulette < specChance)
 					{
-						//Specular
-						colorOut += (reflectionColor * (1.0f / specChance) * 
-							specular);
 						//Point Lights
 						for(int index = 0; index < 4; index++)
 						{
