@@ -491,6 +491,7 @@
 					cubeMapPosition = IN.worldPos + direction*500; //INVESTIGATE: is there a better way to get CubeMap distance in a PBR manner?
 					cubeMapSize = IN.screenPos.w;
 
+					//Trace
 					if(roulette < specChance)
 					{
 						//Specular
