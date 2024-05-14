@@ -87,6 +87,8 @@
 			Blend SrcAlpha OneMinusSrcAlpha
 
 			CGPROGRAM
+// Upgrade NOTE: excluded shader from DX11, OpenGL ES 2.0 because it uses unsized arrays
+#pragma exclude_renderers d3d11 gles
 
 			#pragma vertex vert
 			#pragma fragment frag
@@ -449,7 +451,35 @@
 					float3 direction = SampleHemisphere(IN.worldViewDir, uNormal, alpha);
 					float f = (alpha + 2) / (alpha + 1);
 
-					float3 lightDir, lightIntensity;
+					//Get lighting info for first-bounce ray casting
+					float4x3 pointLightPosition, pointLightIntensity;
+					float4 pointLightSize;
+					float3 lightMapIntensity, lightMapPosition;
+					float lightMapSize;
+					float3 cubeMapIntensity, cubeMapPosition;
+					float cubeMapSize;
+
+					//Point Lights
+					for (int index = 0; index < 4; index++)
+					{  
+						pointLightPosition[index] = float3(unity_4LightPosX0[index], 
+						unity_4LightPosY0[index], 
+						unity_4LightPosZ0[index]);    
+						pointLightIntensity[index] = unity_LightColor[index].rgb;
+						pointLightSize[index] = 0.01; //TODO: get actual light size
+
+					}
+
+					//Lightmap
+					lightMapIntensity = lightmapColor;
+					lightMapPosition = IN.worldPos;
+					lightMapSize = 0.1; //TODO: get actual light map size
+
+					//Cubemap
+					cubeMapIntensity = (reflectionColor.r+reflectionColor.g+reflectionColor.b)/3;
+					cubeMapPosition = IN.worldPos + uNormal*500; //INVESTIGATE: is there a better way to get CubeMap distance in a PBR manner?
+					cubeMapSize = IN.screenPos.w;
+
 					if(roulette < specChance)
 					{
 						//Specular
@@ -459,34 +489,7 @@
 					//Diffuse
 					else
 					{
-						//Point Lights
-						for (int index = 0; index < 4; index++)
-						{  
-							float4 lightPosition = float4(unity_4LightPosX0[index], 
-							unity_4LightPosY0[index], 
-							unity_4LightPosZ0[index], 1.0);
-					
-							float3 lightDir = 
-							normalize(lightPosition.xyz - IN.worldPos.xyz);     
-							lightIntensity = unity_LightColor[index].rgb;
-
-							diffuseOut += (origAlbedo * float4(lightIntensity,1) *
-								max(0.0f, dot(-uNormal, -lightDir)));
-							//float3 R = reflect(lightDir, uNormal);
-							//specular += float4(lightIntensity,1) * pow(max(0.0f, dot(R,)))
-						}
-
-						//Lightmap
-						lightIntensity = lightmapColor;
-						lightDir = uNormal;
-						diffuseOut += (origAlbedo * float4(lightIntensity,1) *
-							max(0.0f, dot(-uNormal, -lightDir)));
-
-						//Cubemap
-						lightIntensity = reflectionColor;
-						lightDir = uNormal;
-						diffuseOut += (origAlbedo * (lightIntensity.r,lightIntensity.g,lightIntensity.b)/3 *
-							max(0.0f, dot(-uNormal, -lightDir)));
+						
 					}
 				}
 				colorOut = (diffuseOut+specularOut)/_NumSamples;
