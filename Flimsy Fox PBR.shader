@@ -81,14 +81,14 @@
     {
 		Pass
 		{
-			Tags {"LightMode"="ForwardBase" "RenderType"="Transparent"}
+			Tags {"LightMode"="ForwardBase" 
+			"RenderType"="Transparent"
+			}
 			LOD 350
 			ZWrite On
 			Blend SrcAlpha OneMinusSrcAlpha
 
 			CGPROGRAM
-// Upgrade NOTE: excluded shader from DX11, OpenGL ES 2.0 because it uses unsized arrays
-#pragma exclude_renderers d3d11 gles
 
 			#pragma vertex vert
 			#pragma fragment frag
