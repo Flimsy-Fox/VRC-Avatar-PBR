@@ -183,6 +183,13 @@
 				
 				float4 vertex : POSITION;
 			};
+
+			struct PBRLight
+			{
+				float size;
+				float3 position;
+				float3 intensity;
+			};
 			
 			float clampLoop(float input, float max)
 			{
@@ -349,7 +356,7 @@
 				
 				float2 screenUV = IN.screenPos.xy / IN.screenPos.w;
 				_Pixel = screenUV * _ScreenParams.xy;
-				_WorldPos = IN.worldPos;
+				float3 worldPos = (normalize(_WorldSpaceCameraPos - IN.worldPos.yxz) + 2)/2;
 				
 				//Normals
 				half3 baseNormal = UnpackNormal(float4(0.5,0.5,1,1));
@@ -461,86 +468,52 @@
 					float f = (alpha + 2) / (alpha + 1);
 
 					//Get lighting info for first-bounce ray casting
-					float4x3 pointLightPosition, pointLightIntensity;
-					float4 pointLightSize;
-					float3 lightMapIntensity, lightMapPosition;
-					float lightMapSize;
-					float3 cubeMapIntensity, cubeMapPosition;
-					float cubeMapSize;
+					PBRLight lights[6]; //0-3 PointLights; 4 lightmap; 5 cubemap
 
 					//Point Lights
 					for (int index = 0; index < 4; index++)
 					{  
-						pointLightPosition[index] = float3(unity_4LightPosX0[index], 
+						lights[index].position = float3(unity_4LightPosX0[index], 
 						unity_4LightPosY0[index], 
 						unity_4LightPosZ0[index]);    
-						pointLightIntensity[index] = unity_LightColor[index].rgb;
-						pointLightSize[index] = 1; //TODO: get actual light size
+						lights[index].intensity = unity_LightColor[index].rgb;
+						lights[index].size = 1; //TODO: get actual light size
 
 					}
 
 					//Lightmap
-					lightMapIntensity = lightmapColor.rgb;
-					lightMapPosition = IN.worldPos;
-					lightMapSize = 0.1; //TODO: get actual light map size
+					lights[4].intensity = lightmapColor.rgb;
+					lights[4].position = worldPos;
+					lights[4].size = 0.1; //TODO: get actual light map size
 
 					//Cubemap
-					cubeMapIntensity = (reflectionColor.r+reflectionColor.g+reflectionColor.b)/3;
-					cubeMapPosition = IN.worldPos + direction*500; //INVESTIGATE: is there a better way to get CubeMap distance in a PBR manner?
-					cubeMapSize = IN.screenPos.w;
+					lights[5].intensity = reflectionColor;
+					lights[5].position = worldPos + direction*500; //INVESTIGATE: is there a better way to get CubeMap distance in a PBR manner?
+					lights[5].size = IN.screenPos.w;
 
 					//Trace
 					if(roulette < specChance)
 					{
-						//Point Lights
-						for(int index = 0; index < 4; index++)
+						for(int index = 0; index < 6; index++)
 						{
-							if(sphereIntersect(IN.worldPos, direction, pointLightPosition[index], pointLightSize[index]).y >= 0)
+							if(sphereIntersect(worldPos, direction, lights[index].position, lights[index].size).y >= 0)
 							{
-								colorOut += (pointLightIntensity[index] * (1.0f / specChance) * 
+								colorOut += (lights[index].intensity * (1.0f / specChance) * 
 									specular * sdot(uNormal, direction, f));
 							}
-						}
-						//Light Map
-						if(sphereIntersect(IN.worldPos, direction, lightMapPosition, lightMapSize).y >= 0)
-						{
-							colorOut += (lightMapIntensity * (1.0f / specChance) * 
-								specular * sdot(uNormal, direction, f));
-						}
-						//Cube Map
-						
-						if(sphereIntersect(IN.worldPos, direction, cubeMapPosition, cubeMapSize).y >= 0.0f)
-						{
-							colorOut += (cubeMapIntensity * (1.0f / specChance) * 
-								specular * sdot(uNormal, direction, f));
 						}
 					}
 					//Diffuse
 					else
 					{
-						//Point Lights
-						for(int index = 0; index < 4; index++)
+						for(int index = 0; index < 6; index++)
 						{
-							if(sphereIntersect(IN.worldPos, direction, pointLightPosition[index], pointLightSize[index]).y >= 0)
+							if(sphereIntersect(worldPos, direction, lights[index].position, lights[index].size).y >= 0)
 							{
-								colorOut += (pointLightIntensity[index] * (1.0f / diffChance) *
+								colorOut += (lights[index].intensity * (1.0f / diffChance) *
 									albedo);
 							}
 						}
-						//Light Map
-						if(sphereIntersect(IN.worldPos, direction, lightMapPosition, lightMapSize).y >= 0)
-						{
-							colorOut += (lightMapIntensity * (1.0f / diffChance) *
-								albedo);
-						}
-						//Cube Map
-						
-						if(sphereIntersect(IN.worldPos, direction, cubeMapPosition, cubeMapSize).y >= 0.0f)
-						{
-							colorOut += (cubeMapIntensity * (1.0f / diffChance) *
-								albedo);
-						}
-						//colorOut += float4(pointLightIntensity[0].rgb, 1);
 					}
 				}
 				colorOut /= _NumSamples;
