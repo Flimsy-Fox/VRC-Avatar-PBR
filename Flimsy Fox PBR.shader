@@ -319,7 +319,7 @@
 				
 				o.worldPos = mul(unity_ObjectToWorld, v.vertex);
 				o.localPos = v.vertex;
-				o.worldViewDir = normalize(UnityWorldSpaceViewDir(o.worldPos));
+				o.worldViewDir = (NormalizePerVertexNormal(_WorldSpaceCameraPos - o.worldPos.yxz) + 2)/2 * float3(1,1,1);
 
 				o.tangent = v.tangent;
 				o.normal = v.normal;
@@ -500,21 +500,21 @@
 							if(sphereIntersect(IN.worldPos, direction, pointLightPosition[index], pointLightSize[index]).y >= 0)
 							{
 								colorOut += (float4(pointLightIntensity[index], 1) * (1.0f / specChance) * 
-									specular);
+									specular * sdot(uNormal, direction, f));
 							}
 						}
 						//Light Map
 						if(sphereIntersect(IN.worldPos, direction, lightMapPosition, lightMapSize).y >= 0)
 						{
 							colorOut += (float4(lightMapIntensity, 1) * (1.0f / specChance) * 
-								specular);
+								specular * sdot(uNormal, direction, f));
 						}
 						//Cube Map
 						
 						if(sphereIntersect(IN.worldPos, direction, cubeMapPosition, cubeMapSize).y >= 0.0f)
 						{
 							colorOut += (float4(cubeMapIntensity, 1) * (1.0f / specChance) * 
-								specular);
+								specular * sdot(uNormal, direction, f));
 						}
 					}
 					//Diffuse
@@ -561,6 +561,7 @@
 				//POST PROCESSING and final calculations
 				UNITY_APPLY_FOG(IN.fogCoord, colorOut);
 			 	colorOut.a = origAlbedo.a;
+				//colorOut = float4(IN.worldViewDir, 1);
 				
 				return fixed4(colorOut);
 			}
