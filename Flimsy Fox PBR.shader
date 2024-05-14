@@ -495,7 +495,29 @@
 					{
 						//Specular
 						colorOut += (reflectionColor * (1.0f / specChance) * 
-							specular * sdot(uNormal, direction, f));
+							specular);
+						//Point Lights
+						for(int index = 0; index < 4; index++)
+						{
+							if(sphereIntersect(IN.worldPos, direction, pointLightPosition[index], pointLightSize[index]).y >= 0)
+							{
+								colorOut += (float4(pointLightIntensity[index], 1) * (1.0f / specChance) * 
+									specular);
+							}
+						}
+						//Light Map
+						if(sphereIntersect(IN.worldPos, direction, lightMapPosition, lightMapSize).y >= 0)
+						{
+							colorOut += (float4(lightMapIntensity, 1) * (1.0f / specChance) * 
+								specular);
+						}
+						//Cube Map
+						
+						if(sphereIntersect(IN.worldPos, direction, cubeMapPosition, cubeMapSize).y >= 0.0f)
+						{
+							colorOut += (float4(cubeMapIntensity, 1) * (1.0f / specChance) * 
+								specular);
+						}
 					}
 					//Diffuse
 					else
