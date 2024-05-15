@@ -468,14 +468,14 @@
 					float f = (alpha + 2) / (alpha + 1);
 
 					//Get lighting info for first-bounce ray casting
-					PBRLight lights[6]; //0-3 PointLights; 4 lightmap; 5 cubemap
+					PBRLight lights[7]; //0-3 PointLights; 4 lightmap; 5 cubemap; 6 ambient
 
 					//Point Lights
 					for (int index = 0; index < 4; index++)
 					{  
 						lights[index].position = float3(unity_4LightPosX0[index], 
 						unity_4LightPosY0[index], 
-						unity_4LightPosZ0[index]);    
+						unity_4LightPosZ0[index]);    //TODO: fast inverse matrix
 						lights[index].intensity = unity_LightColor[index].rgb;
 						lights[index].size = 1; //TODO: get actual light size
 
@@ -484,31 +484,37 @@
 					//Lightmap
 					lights[4].intensity = lightmapColor.rgb;
 					lights[4].position = worldPos;
-					lights[4].size = 0.1; //TODO: get actual light map size
+					lights[4].size = IN.screenPos.w; //TODO: get actual light map size
 
 					//Cubemap
 					lights[5].intensity = reflectionColor;
 					lights[5].position = worldPos + direction*500; //INVESTIGATE: is there a better way to get CubeMap distance in a PBR manner?
 					lights[5].size = IN.screenPos.w;
 
-					//Trace
-					if(roulette < specChance)
+					//Ambient lighting, if no lightmap
+					lights[6].intensity = ambient;
+					lights[6].position = worldPos;
+					lights[6].size = IN.screenPos.w;
+					for(int index = 0; index < 7; index++)
 					{
-						for(int index = 0; index < 6; index++)
+						float2 intersect = sphereIntersect(worldPos, direction, lights[index].position, lights[index].size);
+						if(intersect.x >= 0 && index != 4)
 						{
-							if(sphereIntersect(worldPos, direction, lights[index].position, lights[index].size).y >= 0)
+							//lights[index].intensity /= (intersect.x * intersect.x);
+						}
+						//Trace
+						if(roulette < specChance)
+						{
+							if(intersect.y >= 0)
 							{
 								colorOut += (lights[index].intensity * (1.0f / specChance) * 
 									specular * sdot(uNormal, direction, f));
 							}
 						}
-					}
-					//Diffuse
-					else
-					{
-						for(int index = 0; index < 6; index++)
+						//Diffuse
+						else
 						{
-							if(sphereIntersect(worldPos, direction, lights[index].position, lights[index].size).y >= 0)
+							if(intersect.y >= 0)
 							{
 								colorOut += (lights[index].intensity * (1.0f / diffChance) *
 									albedo);
