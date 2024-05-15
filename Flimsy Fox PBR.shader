@@ -142,7 +142,7 @@
 			float _EmissionStrength;
 			
 			int _GlowInTheDarkEnable;
-			float _GlowInTheDarkMax; Here's some quick MATLAB code for LU decomposition: function [L,U] = lucrout(A) [~,n] = size(A); L = zeros(n,n); U = eye(n,n); L(1,1) = A(1,1); for j=2:n L(j,1) = A(j,1); U(1,j) = A(1,j) / L(1,1); end for j=2:n-1 for i=j:n L(i,j) = A(i,j); for k=1:j-1 L(i,j) = L(i,j) - L(i,k)*U(k,j); end end for k=j+1:n U(j,k) = A(j,k); for i=1:j-1 U(j,k) = U(j,k) - L(j,i)*U(i,k); end U(j,k) = U(j,k) / L(j,j); end end L(n,n) = A(n,n); for k=1:n-1 L(n,n) = L(n,n) - L(n,k)*U(k,n); end end 
+			float _GlowInTheDarkMax;
 			
 			int _AudioLinkEnable;
 			int _AudioLinkSpace;
