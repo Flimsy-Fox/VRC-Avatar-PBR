@@ -406,41 +406,6 @@
 					reflectionColor = float4(DecodeHDR(half4(reflectionColor), unity_SpecCube0_HDR), reflectionColor.w);
 				}
 
-				//Lightmap
-				half3 ambient;
-				half4 lightmapUV;
-				float4 lightmapColor = float4(0,0,0,0);
-				#if defined(LIGHTMAP_ON) || defined(DYNAMICLIGHTMAP_ON)
-					ambient = 0;
-					lightmapUV = IN.ambientoruvLM;
-				#else
-					ambient = IN.ambientoruvLM.rgb;
-					lightmapUV = 0;
-				#endif
-				#if defined(LIGHTMAP_ON)
-					half4 bakedColorTex = UNITY_SAMPLE_TEX2D(unity_Lightmap, lightmapUV.xy);
-					half3 bakedColor = DecodeLightmap(bakedColorTex);
-					#ifdef DIRLIGHTMAP_COMBINED
-						fixed4 bakedDirTex = UNITY_SAMPLE_TEX2D_SAMPLER(unity_LightmapInd, unity_Lightmap, lightmapUV.xy);
-						lightmapColor += DecodeDirectionalLightmap(bakedColor, bakedDirTex, uNormal); //TODO: get normal from ray tracing instead
-					#else
-						lightmapColor += bakedColor;
-					#endif
-				#endif
-				#ifdef DYNAMICLIGHTMAP_ON
-					fixed4 realtimeColorTex = UNITY_SAMPLE_TEX2D(unity_DynamicLightmap, lightmapUV.zw);
-					half3 realtimeColor = DecodeRealtimeLightmap(realtimeColorTex);
-					#ifdef DIRLIGHTMAP_COMBINED
-						half4 realtimeDirTex = UNITY_SAMPLE_TEX2D_SAMPLER(unity_DynamicDirectionality, unity_DynamicLightmap, lightmapUV.zw);
-						lightmapColor += DecodeDirectionalLightmap(realtimeColor, realtimeDirTex, uNormal);
-					#else
-						lightmapColor += realtimeColor;
-					#endif
-				#endif
-
-
-
-
 				reflectionColor += float4(lighting, 0);
 				
 				float4 specular = float4(tex2D (_Specular, IN.uv));
@@ -511,6 +476,36 @@
 					}
 
 					//Lightmap
+					half3 ambient;
+					half4 lightmapUV;
+					float4 lightmapColor = float4(0,0,0,0);
+					#if defined(LIGHTMAP_ON) || defined(DYNAMICLIGHTMAP_ON)
+						ambient = 0;
+						lightmapUV = IN.ambientoruvLM;
+					#else
+						ambient = IN.ambientoruvLM.rgb;
+						lightmapUV = 0;
+					#endif
+					#if defined(LIGHTMAP_ON)
+						half4 bakedColorTex = UNITY_SAMPLE_TEX2D(unity_Lightmap, lightmapUV.xy);
+						half3 bakedColor = DecodeLightmap(bakedColorTex);
+						#ifdef DIRLIGHTMAP_COMBINED
+							fixed4 bakedDirTex = UNITY_SAMPLE_TEX2D_SAMPLER(unity_LightmapInd, unity_Lightmap, lightmapUV.xy);
+							lightmapColor += DecodeDirectionalLightmap(bakedColor, bakedDirTex, direction);
+						#else
+							lightmapColor += bakedColor;
+						#endif
+					#endif
+					#ifdef DYNAMICLIGHTMAP_ON
+						fixed4 realtimeColorTex = UNITY_SAMPLE_TEX2D(unity_DynamicLightmap, lightmapUV.zw);
+						half3 realtimeColor = DecodeRealtimeLightmap(realtimeColorTex);
+						#ifdef DIRLIGHTMAP_COMBINED
+							half4 realtimeDirTex = UNITY_SAMPLE_TEX2D_SAMPLER(unity_DynamicDirectionality, unity_DynamicLightmap, lightmapUV.zw);
+							lightmapColor += DecodeDirectionalLightmap(realtimeColor, realtimeDirTex, direction);
+						#else
+							lightmapColor += realtimeColor;
+						#endif
+					#endif
 					lights[4].intensity = lightmapColor.rgb;
 					lights[4].position = IN.worldPos;
 					lights[4].size = IN.screenPos.w; //TODO: get actual light map size
@@ -529,10 +524,7 @@
 						float2 intersect = sphereIntersect(IN.worldPos, direction, lights[index].position, lights[index].size);
 						//colorOut += lights[5].position/500;
 						
-						if(intersect.x >= 0 && index != 4)
-						{
-							lights[index].intensity /= (intersect.x * intersect.x);
-						}
+						//lights[index].intensity /= (intersect.x * intersect.x);
 						//Trace
 						if(roulette < specChance)
 						{
