@@ -396,17 +396,7 @@
 				uNormal.y = dot(IN.tspace1, normal);
 				uNormal.z = dot(IN.tspace2, normal);
 				
-				//Reflected light, color, and shadow calculations
 				origAlbedo = tex2D (_Albedo, IN.uv) * _Color;
-				float4 reflectionColor = float4(0,0,0,1);
-				float3 lighting = float3(0,0,0);
-				if(_EnableRefl == 1)
-				{
-					reflectionColor = UNITY_SAMPLE_TEXCUBE (unity_SpecCube0, uNormal);
-					reflectionColor = float4(DecodeHDR(half4(reflectionColor), unity_SpecCube0_HDR), reflectionColor.w);
-				}
-
-				reflectionColor += float4(lighting, 0);
 				
 				float4 specular = float4(tex2D (_Specular, IN.uv));
 				float4 smoothness = lerp(float4(tex2D (_Roughness, IN.uv)), 1 - float4(tex2D (_Roughness, IN.uv)), _SmoothnessToggle);
@@ -444,7 +434,8 @@
 				emission *= _EmissionColor * _EmissionStrength;
 				
 				//PBR shading starts
-				float3 colorOut = float4(0,0,0,0);
+				float3 colorOut = float3(0,0,0);
+				float3 lighting = 0;
 				float4 albedo = min(1.0f - specular, origAlbedo);
 				float specChance = energy(specular);
 				float diffChance = energy(albedo);
@@ -511,6 +502,9 @@
 					lights[4].size = IN.screenPos.w; //TODO: get actual light map size
 
 					//Cubemap
+					float4 reflectionColor = float4(0,0,0,1);
+					reflectionColor = UNITY_SAMPLE_TEXCUBE (unity_SpecCube0, direction);
+					reflectionColor = float4(DecodeHDR(half4(reflectionColor), unity_SpecCube0_HDR), reflectionColor.w);
 					lights[5].intensity = reflectionColor;
 					lights[5].position = IN.worldPos + direction*500; //INVESTIGATE: is there a better way to get CubeMap distance in a PBR manner?
 					lights[5].size = IN.screenPos.w;
@@ -532,6 +526,7 @@
 							{
 								colorOut += (lights[index].intensity * (1.0f / specChance) * 
 									specular * sdot(uNormal, direction, f));
+								lighting += lights[index].intensity;
 							}
 						}
 						//Diffuse
@@ -541,6 +536,7 @@
 							{
 								colorOut += (lights[index].intensity * (1.0f / diffChance) *
 									albedo);
+								lighting += lights[index].intensity;
 							}
 						}
 					}
