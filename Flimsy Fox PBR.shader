@@ -89,6 +89,8 @@
 			Blend SrcAlpha OneMinusSrcAlpha
 
 			CGPROGRAM
+// Upgrade NOTE: excluded shader from DX11, OpenGL ES 2.0 because it uses unsized arrays
+#pragma exclude_renderers d3d11 gles
 
 			#pragma vertex vert
 			#pragma fragment frag
@@ -234,6 +236,28 @@
 				_Seed += 1;
 				
 				return result;
+			}
+
+			float4x4 fastInverseMatrix4x4(float4x4 inputMatrix)
+			{
+				//https://www.codeproject.com/Questions/754429/C-Program-to-calculate-inverse-of-matrix-n-n
+				float4x4 inverse_matrix;
+				float det=determinant(inputMatrix);
+
+				float num=1/det;
+				float4x4 m_Transpose=transpose(inputMatrix);
+
+				/*complex of determinant with Transpose*/
+				for(int i=0;i<4;i++)
+				{
+					for(int j=0;j<4;j++)
+					{
+						inverse_matrix=num*m_Transpose[i][j];
+					}
+				}
+
+
+				return inverse_matrix;
 			}
 			
 			float sdot(float3 x, float3 y, float f = 1.0f)
@@ -476,6 +500,7 @@
 						lights[index].position = float3(unity_4LightPosX0[index], 
 						unity_4LightPosY0[index], 
 						unity_4LightPosZ0[index]);    //TODO: fast inverse matrix
+						lights[index].position = mul(fastInverseMatrix4x4(UNITY_MATRIX_MV), lights[index].position).xyz;
 						lights[index].intensity = unity_LightColor[index].rgb;
 						lights[index].size = 1; //TODO: get actual light size
 
@@ -498,6 +523,8 @@
 					for(int index = 0; index < 7; index++)
 					{
 						float2 intersect = sphereIntersect(worldPos, direction, lights[index].position, lights[index].size);
+						colorOut += lights[index].position;
+						/*
 						if(intersect.x >= 0 && index != 4)
 						{
 							//lights[index].intensity /= (intersect.x * intersect.x);
@@ -519,7 +546,7 @@
 								colorOut += (lights[index].intensity * (1.0f / diffChance) *
 									albedo);
 							}
-						}
+						}*/
 					}
 				}
 				colorOut /= _NumSamples;
