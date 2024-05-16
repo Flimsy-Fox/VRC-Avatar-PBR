@@ -399,10 +399,11 @@
 				origAlbedo = tex2D (_Albedo, IN.uv) * _Color;
 				
 				float4 specular = float4(tex2D (_Specular, IN.uv));
-				float4 smoothness = lerp(float4(tex2D (_Roughness, IN.uv)), 1 - float4(tex2D (_Roughness, IN.uv)), _SmoothnessToggle);
+				float4 roughness = tex2D (_Roughness, IN.uv);
+				roughness *= _RoughnessMult + _RoughnessAdd;
+				float4 smoothness = lerp(roughness, 1 - roughness, _SmoothnessToggle);
 				
 				specular = min(specular * _SpecularMult + _SpecularAdd, 1);
-				smoothness *= _RoughnessMult + _RoughnessAdd;
 				
 				emissionMask = float4(tex2D (_EmissionMask, IN.uv));
 				emission = float4(tex2D (_Emission, IN.uv));
