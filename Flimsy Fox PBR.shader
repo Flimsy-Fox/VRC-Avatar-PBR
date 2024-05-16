@@ -407,6 +407,7 @@
 				
 				emissionMask = float4(tex2D (_EmissionMask, IN.uv));
 				emission = float4(tex2D (_Emission, IN.uv));
+				emission *= _EmissionColor * _EmissionStrength;
 
 				//AudioLink
 				if(_AudioLinkEnable &&
@@ -432,7 +433,6 @@
 					}
 					}
 				}
-				emission *= _EmissionColor * _EmissionStrength;
 				
 				//PBR shading starts
 				float3 colorOut = float3(0,0,0);
@@ -543,12 +543,13 @@
 					}
 				}
 				colorOut /= _NumSamples;
+				lighting /= _NumSamples;
 				
-				float glowInTheDark;
+				float3 glowInTheDark = 1;
 				if(_GlowInTheDarkEnable)
-					glowInTheDark = 1 - min(lighting + (1 - _GlowInTheDarkMax*_LightMult), 1);
-				else
-					glowInTheDark = 1;
+				{
+					glowInTheDark *= max(min(lighting - _GlowInTheDarkMax, 1), 0);
+				}
 				emission.r *= emissionMask.r;
 				emission.g *= emissionMask.g;
 				emission.b *= emissionMask.b;
@@ -558,7 +559,7 @@
 				//POST PROCESSING and final calculations
 				UNITY_APPLY_FOG(IN.fogCoord, colorOut);
 			 	//colorOut.a = origAlbedo.a;
-				//colorOut = float4(IN.worldViewDir, 1);
+				//colorOut = emission;
 				
 				return fixed4(colorOut, origAlbedo.a);
 			}
