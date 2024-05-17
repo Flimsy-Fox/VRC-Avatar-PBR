@@ -330,7 +330,172 @@
 			{
 				return pow(1000.0f, s * s);
 			}
-			
+
+			float3 shadeDiffuse(PBRLight light, inout float3 lighting, float diffChance, float3 albedo)
+			{
+				float3 intensity;
+				intensity = (light.intensity * (1.0f / diffChance) *
+					albedo);
+				lighting += light.intensity;
+
+				return intensity;
+			}
+
+			float3 shadeSpecular(PBRLight light, inout float3 lighting, float3 worldPosition, float3 normal, float3 direction
+				, float f, float specChance, float3 albedo, float3 specular)
+			{
+				float3 intensity = 0;
+				float2 intersect = sphereIntersect(worldPosition, direction, light.position, light.size);
+				if(intersect.y >= 0)
+				{
+					intensity = (light.intensity * (1.0f / specChance) * 
+						specular * sdot(normal, direction, f));
+					lighting += light.intensity;
+				}
+				return intensity;
+			}
+
+			float3 traceAndShade(float screenSize, PBRLight lights[4], half3 lightmap, inout float3 lighting
+				, float3 worldPosition, float3 normal, float3 viewDirection
+				, float3 albedo, float3 specular, float3 smoothness)
+			{
+				float3 intensity = 0;
+				float roulette = rand();
+				albedo = min(1.0f - specular, albedo);
+				float specChance = energy(specular);
+				float diffChance = energy(albedo);
+				float sum = specChance + diffChance;
+				specChance /= sum;
+				diffChance /= sum;
+				
+				PBRLight lightMaps[3]; //0 lightmap, 1 cubemap, 2 ambient
+				if(roulette < specChance)
+				{
+					float alpha = SmoothnessToPhongAlpha(smoothness);
+					float3 direction = SampleHemisphere(viewDirection, normal, alpha);
+					float f = (alpha + 2) / (alpha + 1);
+
+					//Lightmap
+					half3 ambient;
+					half4 lightmapUV;
+					float4 lightmapColor = float4(0,0,0,0);
+					#if defined(LIGHTMAP_ON) || defined(DYNAMICLIGHTMAP_ON)
+						ambient = 0;
+						lightmapUV = lightmap;
+					#else
+						ambient = lightmap.rgb;
+						lightmapUV = 0;
+					#endif
+					#if defined(LIGHTMAP_ON)
+						half4 bakedColorTex = UNITY_SAMPLE_TEX2D(unity_Lightmap, lightmapUV.xy);
+						half3 bakedColor = DecodeLightmap(bakedColorTex);
+						#ifdef DIRLIGHTMAP_COMBINED
+							fixed4 bakedDirTex = UNITY_SAMPLE_TEX2D_SAMPLER(unity_LightmapInd, unity_Lightmap, lightmapUV.xy);
+							lightmapColor += DecodeDirectionalLightmap(bakedColor, bakedDirTex, direction);
+						#else
+							lightmapColor += bakedColor;
+						#endif
+					#endif
+					#ifdef DYNAMICLIGHTMAP_ON
+						fixed4 realtimeColorTex = UNITY_SAMPLE_TEX2D(unity_DynamicLightmap, lightmapUV.zw);
+						half3 realtimeColor = DecodeRealtimeLightmap(realtimeColorTex);
+						#ifdef DIRLIGHTMAP_COMBINED
+							half4 realtimeDirTex = UNITY_SAMPLE_TEX2D_SAMPLER(unity_DynamicDirectionality, unity_DynamicLightmap, lightmapUV.zw);
+							lightmapColor += DecodeDirectionalLightmap(realtimeColor, realtimeDirTex, direction);
+						#else
+							lightmapColor += realtimeColor;
+						#endif
+					#endif
+					lightMaps[0].intensity = lightmapColor.rgb;
+					lightMaps[0].position = worldPosition;
+					lightMaps[0].size = screenSize;
+
+					//Cubemap
+					float4 reflectionColor = float4(0,0,0,1);
+					reflectionColor = UNITY_SAMPLE_TEXCUBE (unity_SpecCube0, direction);
+					reflectionColor = float4(DecodeHDR(half4(reflectionColor), unity_SpecCube0_HDR), reflectionColor.w);
+					lightMaps[1].intensity = reflectionColor;
+					lightMaps[1].position = worldPosition + direction*500; //INVESTIGATE: is there a better way to get CubeMap distance in a PBR manner?
+					lightMaps[1].size = screenSize;
+
+					//Ambient lighting, if no lightmap
+					lightMaps[2].intensity = ambient;
+					lightMaps[2].position = worldPosition;
+					lightMaps[2].size = screenSize;
+
+					for(int i = 0; i < 3; i++)
+					{
+						intensity += shadeSpecular(lightMaps[i], lighting, worldPosition, normal, direction
+							, f, specChance, albedo, specular);
+					}
+					for(int i = 0; i < 4; i++)
+					{
+						intensity += shadeSpecular(lights[i], lighting, worldPosition, normal, direction
+							, f, specChance, albedo, specular);
+					}
+				}
+				//Diffuse
+				else
+				{
+					//Lightmap
+					half3 ambient;
+					half4 lightmapUV;
+					float4 lightmapColor = float4(0,0,0,0);
+					#if defined(LIGHTMAP_ON) || defined(DYNAMICLIGHTMAP_ON)
+						ambient = 0;
+						lightmapUV = lightmap;
+					#else
+						ambient = lightmap.rgb;
+						lightmapUV = 0;
+					#endif
+					#if defined(LIGHTMAP_ON)
+						half4 bakedColorTex = UNITY_SAMPLE_TEX2D(unity_Lightmap, lightmapUV.xy);
+						half3 bakedColor = DecodeLightmap(bakedColorTex);
+						#ifdef DIRLIGHTMAP_COMBINED
+							fixed4 bakedDirTex = UNITY_SAMPLE_TEX2D_SAMPLER(unity_LightmapInd, unity_Lightmap, lightmapUV.xy);
+							lightmapColor += DecodeDirectionalLightmap(bakedColor, bakedDirTex, normal);
+						#else
+							lightmapColor += bakedColor;
+						#endif
+					#endif
+					#ifdef DYNAMICLIGHTMAP_ON
+						fixed4 realtimeColorTex = UNITY_SAMPLE_TEX2D(unity_DynamicLightmap, lightmapUV.zw);
+						half3 realtimeColor = DecodeRealtimeLightmap(realtimeColorTex);
+						#ifdef DIRLIGHTMAP_COMBINED
+							half4 realtimeDirTex = UNITY_SAMPLE_TEX2D_SAMPLER(unity_DynamicDirectionality, unity_DynamicLightmap, lightmapUV.zw);
+							lightmapColor += DecodeDirectionalLightmap(realtimeColor, realtimeDirTex, normal);
+						#else
+							lightmapColor += realtimeColor;
+						#endif
+					#endif
+					lightMaps[0].intensity = lightmapColor.rgb;
+					lightMaps[0].position = worldPosition;
+					lightMaps[0].size = screenSize;
+
+					//Cubemap
+					float4 reflectionColor = float4(0,0,0,1);
+					reflectionColor = UNITY_SAMPLE_TEXCUBE (unity_SpecCube0, normal);
+					reflectionColor = float4(DecodeHDR(half4(reflectionColor), unity_SpecCube0_HDR), reflectionColor.w);
+					lightMaps[1].intensity = reflectionColor;
+					lightMaps[1].position = worldPosition + normal*500; //INVESTIGATE: is there a better way to get CubeMap distance in a PBR manner?
+					lightMaps[1].size = screenSize;
+
+					//Ambient lighting, if no lightmap
+					lightMaps[2].intensity = ambient;
+					lightMaps[2].position = worldPosition;
+					lightMaps[2].size = screenSize;
+
+					for(int i = 0; i < 3; i++)
+					{
+						intensity += shadeDiffuse(lightMaps[i], lighting, diffChance, albedo);
+					}
+					for(int i = 0; i < 3; i++)
+					{
+						intensity += shadeDiffuse(lightMaps[i], lighting, diffChance, albedo);
+					}
+				}
+				return intensity;
+			}
 			vertexOutput vert(appdata v)
 			{
 				vertexOutput o;
@@ -373,7 +538,7 @@
 			
 			fixed4 frag (vertexOutput IN) : COLOR
 			{
-				float4 origAlbedo;
+				float4 albedo;
 				float4 emission;
 				float4 emissionMask;
 				float4 audioLink;
@@ -394,12 +559,12 @@
 				uNormal.y = dot(IN.tspace1, normal);
 				uNormal.z = dot(IN.tspace2, normal);
 				
-				origAlbedo = tex2D (_Albedo, IN.uv) * _Color;
+				albedo = tex2D (_Albedo, IN.uv) * _Color;
 				
-				float4 specular = float4(tex2D (_Specular, IN.uv));
-				float4 roughness = tex2D (_Roughness, IN.uv);
+				float3 specular = tex2D (_Specular, IN.uv);
+				float3 roughness = tex2D (_Roughness, IN.uv);
 				roughness *= _RoughnessMult + _RoughnessAdd;
-				float4 smoothness = lerp(roughness, 1 - roughness, _SmoothnessToggle);
+				float3 smoothness = lerp(roughness, 1 - roughness, _SmoothnessToggle);
 				
 				specular = min(specular * _SpecularMult + _SpecularAdd, 1);
 				
@@ -435,23 +600,13 @@
 				//PBR shading starts
 				float3 colorOut = float3(0,0,0);
 				float3 lighting = 0;
-				float4 albedo = min(1.0f - specular, origAlbedo);
-				float specChance = energy(specular);
-				float diffChance = energy(albedo);
-				float sum = specChance + diffChance;
-				specChance /= sum;
-				diffChance /= sum;
 				
 				//Hit 1
 				for(int i = 0; i < _NumSamples; i++)
 				{
-					float roulette = rand();
-					float alpha = SmoothnessToPhongAlpha(smoothness);
-					float3 direction = SampleHemisphere(viewDirection, uNormal, alpha);
-					float f = (alpha + 2) / (alpha + 1);
 
 					//Get lighting info for first-bounce ray casting
-					PBRLight lights[7]; //0-3 PointLights; 4 lightmap; 5 cubemap; 6 ambient
+					PBRLight lights[4]; //0-3 PointLights; 4 lightmap; 5 cubemap; 6 ambient
 
 					//Point Lights
 					for (int index = 0; index < 4; index++)
@@ -459,86 +614,15 @@
 						lights[index].position = float3(unity_4LightPosX0[index], 
 						unity_4LightPosY0[index], 
 						unity_4LightPosZ0[index]);    //TODO: fast inverse matrix
-						//lights[index].position = mul(fastInverseMatrix4x4(UNITY_MATRIX_M), lights[index].position).xyz;
+						//lights[index].position = mul(fastInverseMatrix4x4(UNITY_MATRIX_MV), lights[index].position).xyz;
 						lights[index].intensity = unity_LightColor[index].rgb;
 						lights[index].size = 1; //TODO: get actual light size
 
 					}
-
-					//Lightmap
-					half3 ambient;
-					half4 lightmapUV;
-					float4 lightmapColor = float4(0,0,0,0);
-					#if defined(LIGHTMAP_ON) || defined(DYNAMICLIGHTMAP_ON)
-						ambient = 0;
-						lightmapUV = IN.ambientoruvLM;
-					#else
-						ambient = IN.ambientoruvLM.rgb;
-						lightmapUV = 0;
-					#endif
-					#if defined(LIGHTMAP_ON)
-						half4 bakedColorTex = UNITY_SAMPLE_TEX2D(unity_Lightmap, lightmapUV.xy);
-						half3 bakedColor = DecodeLightmap(bakedColorTex);
-						#ifdef DIRLIGHTMAP_COMBINED
-							fixed4 bakedDirTex = UNITY_SAMPLE_TEX2D_SAMPLER(unity_LightmapInd, unity_Lightmap, lightmapUV.xy);
-							lightmapColor += DecodeDirectionalLightmap(bakedColor, bakedDirTex, direction);
-						#else
-							lightmapColor += bakedColor;
-						#endif
-					#endif
-					#ifdef DYNAMICLIGHTMAP_ON
-						fixed4 realtimeColorTex = UNITY_SAMPLE_TEX2D(unity_DynamicLightmap, lightmapUV.zw);
-						half3 realtimeColor = DecodeRealtimeLightmap(realtimeColorTex);
-						#ifdef DIRLIGHTMAP_COMBINED
-							half4 realtimeDirTex = UNITY_SAMPLE_TEX2D_SAMPLER(unity_DynamicDirectionality, unity_DynamicLightmap, lightmapUV.zw);
-							lightmapColor += DecodeDirectionalLightmap(realtimeColor, realtimeDirTex, direction);
-						#else
-							lightmapColor += realtimeColor;
-						#endif
-					#endif
-					lights[4].intensity = lightmapColor.rgb;
-					lights[4].position = IN.worldPos;
-					lights[4].size = IN.screenPos.w; //TODO: get actual light map size
-
-					//Cubemap
-					float4 reflectionColor = float4(0,0,0,1);
-					reflectionColor = UNITY_SAMPLE_TEXCUBE (unity_SpecCube0, direction);
-					reflectionColor = float4(DecodeHDR(half4(reflectionColor), unity_SpecCube0_HDR), reflectionColor.w);
-					lights[5].intensity = reflectionColor;
-					lights[5].position = IN.worldPos + direction*500; //INVESTIGATE: is there a better way to get CubeMap distance in a PBR manner?
-					lights[5].size = IN.screenPos.w;
-
-					//Ambient lighting, if no lightmap
-					lights[6].intensity = ambient;
-					lights[6].position = IN.worldPos;
-					lights[6].size = IN.screenPos.w;
-					for(int index = 0; index < 7; index++)
-					{
-						float2 intersect = sphereIntersect(IN.worldPos, direction, lights[index].position, lights[index].size);
-						//colorOut += lights[5].position/500;
-						
-						//lights[index].intensity /= (intersect.x * intersect.x);
-						//Trace
-						if(roulette < specChance)
-						{
-							if(intersect.y >= 0)
-							{
-								colorOut += (lights[index].intensity * (1.0f / specChance) * 
-									specular * sdot(uNormal, direction, f));
-								lighting += lights[index].intensity;
-							}
-						}
-						//Diffuse
-						else
-						{
-							if(intersect.y >= 0)
-							{
-								colorOut += (lights[index].intensity * (1.0f / diffChance) *
-									albedo);
-								lighting += lights[index].intensity;
-							}
-						}
-					}
+					
+					colorOut += traceAndShade(IN.screenPos.w, lights, IN.ambientoruvLM, lighting
+				, IN.worldPos, uNormal, viewDirection
+				, albedo, specular, smoothness);
 				}
 				colorOut /= _NumSamples;
 				lighting /= _NumSamples;
@@ -559,7 +643,7 @@
 			 	//colorOut.a = origAlbedo.a;
 				//colorOut = emission;
 				
-				return fixed4(colorOut, origAlbedo.a);
+				return fixed4(colorOut, albedo.a);
 			}
 			ENDCG
 		}
