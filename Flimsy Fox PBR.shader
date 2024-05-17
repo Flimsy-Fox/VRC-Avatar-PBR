@@ -229,7 +229,7 @@
 				uint4 q = uint4(xx) * UI4;
 				q *= UI4;
 				uint n = (q.w ^ q.x ^ q.y ^ q.z) * UI0;
-				//result = float(n) * UIF;
+				result *= float(n) * UIF;
 				
 				_Seed += 1;
 				
