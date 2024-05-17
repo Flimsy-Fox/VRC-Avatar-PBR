@@ -355,7 +355,7 @@
 				return intensity;
 			}
 
-			float3 traceAndShade(float screenSize, PBRLight lights[4], half3 lightmap, inout float3 lighting
+			float3 traceAndShade(float screenSize, PBRLight lights[7], half3 lightmap, inout float3 lighting
 				, float3 worldPosition, float3 normal, float3 viewDirection
 				, float3 albedo, float3 specular, float3 smoothness)
 			{
@@ -368,7 +368,7 @@
 				specChance /= sum;
 				diffChance /= sum;
 				
-				PBRLight lightMaps[3]; //0 lightmap, 1 cubemap, 2 ambient
+				//PBRLight lights[3]; //4 lightmap; 5 cubemap; 6 ambient
 				if(roulette < specChance)
 				{
 					float alpha = SmoothnessToPhongAlpha(smoothness);
@@ -406,33 +406,29 @@
 							lightmapColor += realtimeColor;
 						#endif
 					#endif
-					lightMaps[0].intensity = lightmapColor.rgb;
-					lightMaps[0].position = worldPosition;
-					lightMaps[0].size = screenSize;
+					lights[4].intensity = lightmapColor.rgb;
+					lights[4].position = worldPosition;
+					lights[4].size = screenSize;
 
 					//Cubemap
 					float4 reflectionColor = float4(0,0,0,1);
 					reflectionColor = UNITY_SAMPLE_TEXCUBE (unity_SpecCube0, direction);
 					reflectionColor = float4(DecodeHDR(half4(reflectionColor), unity_SpecCube0_HDR), reflectionColor.w);
-					lightMaps[1].intensity = reflectionColor;
-					lightMaps[1].position = worldPosition + direction*500; //INVESTIGATE: is there a better way to get CubeMap distance in a PBR manner?
-					lightMaps[1].size = screenSize;
+					lights[5].intensity = reflectionColor;
+					lights[5].position = worldPosition + direction*500; //INVESTIGATE: is there a better way to get CubeMap distance in a PBR manner?
+					lights[5].size = screenSize;
 
 					//Ambient lighting, if no lightmap
-					lightMaps[2].intensity = ambient;
-					lightMaps[2].position = worldPosition;
-					lightMaps[2].size = screenSize;
+					lights[6].intensity = ambient;
+					lights[6].position = worldPosition;
+					lights[6].size = screenSize;
 
-					for(int i = 0; i < 3; i++)
-					{
-						intensity += shadeSpecular(lightMaps[i], lighting, worldPosition, normal, direction
-							, f, specChance, albedo, specular);
-					}
-					for(int i = 0; i < 4; i++)
+					for(int i = 0; i < 7; i++)
 					{
 						intensity += shadeSpecular(lights[i], lighting, worldPosition, normal, direction
 							, f, specChance, albedo, specular);
 					}
+
 				}
 				//Diffuse
 				else
@@ -468,30 +464,26 @@
 							lightmapColor += realtimeColor;
 						#endif
 					#endif
-					lightMaps[0].intensity = lightmapColor.rgb;
-					lightMaps[0].position = worldPosition;
-					lightMaps[0].size = screenSize;
+					lights[4].intensity = lightmapColor.rgb;
+					lights[4].position = worldPosition;
+					lights[4].size = screenSize;
 
 					//Cubemap
 					float4 reflectionColor = float4(0,0,0,1);
 					reflectionColor = UNITY_SAMPLE_TEXCUBE (unity_SpecCube0, normal);
 					reflectionColor = float4(DecodeHDR(half4(reflectionColor), unity_SpecCube0_HDR), reflectionColor.w);
-					lightMaps[1].intensity = reflectionColor;
-					lightMaps[1].position = worldPosition + normal*500; //INVESTIGATE: is there a better way to get CubeMap distance in a PBR manner?
-					lightMaps[1].size = screenSize;
+					lights[5].intensity = reflectionColor;
+					lights[5].position = worldPosition + normal*500; //INVESTIGATE: is there a better way to get CubeMap distance in a PBR manner?
+					lights[5].size = screenSize;
 
 					//Ambient lighting, if no lightmap
-					lightMaps[2].intensity = ambient;
-					lightMaps[2].position = worldPosition;
-					lightMaps[2].size = screenSize;
+					lights[6].intensity = ambient;
+					lights[6].position = worldPosition;
+					lights[6].size = screenSize;
 
-					for(int i = 0; i < 3; i++)
+					for(int i = 0; i < 7; i++)
 					{
-						intensity += shadeDiffuse(lightMaps[i], lighting, diffChance, albedo);
-					}
-					for(int i = 0; i < 3; i++)
-					{
-						intensity += shadeDiffuse(lightMaps[i], lighting, diffChance, albedo);
+						intensity += shadeDiffuse(lights[i], lighting, diffChance, albedo);
 					}
 				}
 				return intensity;
@@ -606,7 +598,7 @@
 				{
 
 					//Get lighting info for first-bounce ray casting
-					PBRLight lights[4]; //0-3 PointLights; 4 lightmap; 5 cubemap; 6 ambient
+					PBRLight lights[7]; //0-3 PointLights; 4 lightmap; 5 cubemap; 6 ambient
 
 					//Point Lights
 					for (int index = 0; index < 4; index++)
