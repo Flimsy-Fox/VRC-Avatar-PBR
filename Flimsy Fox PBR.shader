@@ -1,9 +1,9 @@
-﻿Shader "Flimsy Fox/PBR 1.3.0a2 Opaque"
+﻿Shader "Flimsy Fox/PBR 1.3.0a Opaque"
 {
     Properties
     {
 		[HideInInspector] shader_is_using_thry_editor ("", Float) = 0
-		[HideInInspector] shader_master_label ("<color=#00ff00ff>Flimsy Fox PBR 1.3.0a2</color>", Float) = 0
+		[HideInInspector] shader_master_label ("<color=#00ff00ff>Flimsy Fox PBR 1.3.0a</color>", Float) = 0
 		[HideInInspector] shader_properties_label_file("FFOXLabels", Float) = 0
 
 		[HideInInspector] footer_github ("github footer button", Float) = 0
