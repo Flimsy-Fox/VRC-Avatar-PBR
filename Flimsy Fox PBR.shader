@@ -315,8 +315,84 @@
 				return Ne;
 			}
 
+			float3 rotateVector(float3 vec, float3 anglesRadian)
+			{
+				//https://stackoverflow.com/questions/14607640/rotating-a-vector-in-3d-space
+				//Rotate about the X-axis
+				vec.y = vec.y*cos(anglesRadian.x)-vec.z*sin(anglesRadian.x);
+				vec.z = vec.y*sin(anglesRadian.x)+vec.z*cos(anglesRadian.x);
+				
+				//Rotate about the Y-axis
+				vec.x = vec.x*cos(anglesRadian.y)+vec.z*sin(anglesRadian.y);
+				vec.z = -vec.x*sin(anglesRadian.y)+vec.z*cos(anglesRadian.y);
+
+				//Rotate about the Z-axis
+				vec.x = vec.x*cos(anglesRadian.z)-vec.y*sin(anglesRadian.z);
+				vec.y = vec.x*sin(anglesRadian.z)+vec.y*cos(anglesRadian.z);
+
+				return vec;
+			}
+
+			float vectorAngle2(float2 vec) {
+				//https://stackoverflow.com/a/48227232
+				float rad90 = PI/2;
+				float rad180 = PI;
+				float rad270 = 2*PI*(3/4);
+				if (vec.x == 0) // special cases
+					return (vec.y > 0)? rad90
+						: (vec.y == 0)? 0
+						: rad270;
+				else if (vec.y == 0) // special cases
+					return (vec.x >= 0)? 0
+						: rad180;
+				float ret = atan(vec.y/vec.x);
+				if (vec.x < 0 && vec.y < 0) // quadrant Ⅲ
+					ret = rad180 + ret;
+				else if (vec.x < 0) // quadrant Ⅱ
+					ret = rad180 + ret; // it actually substracts
+				else if (vec.y < 0) // quadrant Ⅳ
+					ret = rad270 + (rad90 + ret); // it actually substracts
+				return ret;
+			}
+
+			//TODO: To sphere or to hemisphere?
+			float3 sampleSphere(float3 eyeVector, float3 normal, float alphaX, float alphaY, float alphaZ)
+			{
+				float3 sphereSample = lerp(0,rand()*4*PI-2*PI,alphaX/1000);
+				float d=2;
+				for(int i = 0; i < 10; i++)
+				{
+					if(d>1)
+					{
+						sphereSample.x = lerp(0,rand()*4*PI-2*PI,alphaX/1000);
+						sphereSample.y = lerp(0,rand()*4*PI-2*PI,alphaY/1000);
+						sphereSample.z = lerp(0,rand()*4*PI-2*PI,alphaZ/1000);
+						d = sqrt(pow(sphereSample.x, 2)+pow(sphereSample.y,2)+pow(sphereSample.z,2));
+					}
+				}
+				sphereSample /= d;
+
+				float3 wi = (eyeVector + 1)/2;
+
+				//DEBUG: Should the Z and X axis be swapped in the ZX-plane?
+				float2 sphereXY = sphereSample.xy;
+				float2 sphereYZ = sphereSample.yz;
+				float2 sphereZX = sphereSample.zx;
+				float3 sphereAngles = float3(vectorAngle2(sphereYZ), vectorAngle2(sphereZX), vectorAngle2(sphereXY));
+
+				float2 wiXY = wi.xy;
+				float2 wiYZ = wi.yz;
+				float2 wiZX = wi.zx;
+				float3 wiAngles = float3(vectorAngle2(wiYZ), vectorAngle2(wiZX), vectorAngle2(wiXY));
+
+				float3 viewDirection = rotateVector(normal, wiAngles+sphereAngles);
+
+				return viewDirection;
+			}
+
 			float2 sphereIntersect( in float3 ro, in float3 rd, in float3 ce, float ra )
 			{
+				//https://iquilezles.org/articles/intersectors/
 				float3 oc = ro - ce;
 				float b = dot( oc, rd );
 				float3 qc = oc - b*rd;
@@ -373,7 +449,8 @@
 				diffChance /= sum;
 				
 				float alpha = SmoothnessToPhongAlpha(smoothness);
-				float3 direction = SampleHemisphere(viewDirection, normal, alpha);
+				float3 direction = sampleSphere(viewDirection, normal, alpha, alpha, alpha);
+				//direction = normal;
 				float f = (alpha + 2) / (alpha + 1);
 				if(roulette < specChance)
 				{
@@ -430,6 +507,7 @@
 						intensity += shadeSpecular(lights[i], lighting, worldPosition, normal, direction
 							, f, specChance, albedo, specular);
 					}
+					//intensity += -(direction - normal);
 				}
 				//Diffuse
 				else
@@ -540,7 +618,7 @@
 				
 				float2 screenUV = IN.screenPos.xy / IN.screenPos.w;
 				_Pixel = screenUV * _ScreenParams.xy;
-				float3 viewDirection = (normalize(_WorldSpaceCameraPos - IN.worldPos.yxz) + 2)/2;
+				float3 viewDirection = -normalize(IN.worldPos.xyz - _WorldSpaceCameraPos);
 				
 				//Normals
 				half3 baseNormal = UnpackNormal(float4(0.5,0.5,1,1));
@@ -607,7 +685,7 @@
 						lights[index].position = float3(unity_4LightPosX0[index], 
 						unity_4LightPosY0[index], 
 						unity_4LightPosZ0[index]);    //TODO: fast inverse matrix
-						//lights[index].position = mul(fastInverseMatrix4x4(UNITY_MATRIX_MV), lights[index].position).xyz;
+						//lights[index].position = mul(unity_ObjectToWorld, lights[index].position).xyz;
 						lights[index].intensity = unity_LightColor[index].rgb;
 						lights[index].size = 1; //TODO: get actual light size
 
@@ -635,6 +713,8 @@
 				UNITY_APPLY_FOG(IN.fogCoord, colorOut);
 			 	//colorOut.a = origAlbedo.a;
 				//colorOut = emission;
+				float alpha = SmoothnessToPhongAlpha(smoothness);
+				//colorOut = uNormal;
 				
 				return fixed4(colorOut, albedo.a);
 			}
