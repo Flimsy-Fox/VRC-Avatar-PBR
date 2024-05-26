@@ -372,7 +372,7 @@
 				}
 				sphereSample /= d;
 
-				float3 wi = (eyeVector + 1)/2;
+				float3 wi = -(eyeVector + 1)/2;
 
 				//DEBUG: Should the Z and X axis be swapped in the ZX-plane?
 				float2 sphereXY = sphereSample.xy;
