@@ -9,9 +9,7 @@
 		[HideInInspector] footer_github ("github footer button", Float) = 0
 		
 		[HideInInspector] m_mainOptions("Shader Settings", Float) = 0
-		_NumSamples ("Number of samples", Range(1, 256)) = 128
-		[HideInInspector]_LightMult ("Lighting Multiplier", Range(0, 5)) = 1
-		[HideInInspector][Toggle(_)]_EnableRefl ("Reflections Toggle", Float) = 1
+		_NumSamples ("Number of samples", Range(1, 96)) = 32
 		
 		[HideInInspector]m_start_Albedo("Albedo", Float) = 0
         _Color ("Color", Color) = (1,1,1,1)
@@ -69,6 +67,14 @@
 		_AudioLinkKeyRange ("AudioLink Key Range", Range(0.0, 1.0)) = 0.5
 		[HideInInspector]m_end_AL_colorkey("Color Key", Float) = 0
 		[HideInInspector]m_end_AudioLink("AudioLink", Float) = 0
+		
+		[HideInInspector]m_start_Debug("Debug", Float) = 0
+		[HideInInspector]m_start_Frag_Debug("Fragment Shader", Float) = 0
+		[Enum(none, 100, albedo, 0, emission, 1, normal, 2, lighting, 3, shading, 4)] _FragDebugMode("Debug Mode", Float) = 100
+		_FragDebugLightIndex ("Light Index", Range(0, 6)) = 0
+		[Enum(shadeNormal, 0, shadeNormalDiff, 1)] _FragDebugShadeMode ("Shade Mode", Float) = 0
+		[HideInInspector]m_end_Frag_Debug("Fragment Shader", Float) = 0
+		[HideInInspector]m_end_Debug("Debug", Float) = 0
 
 		[HideInInspector]m_start_Fallback("Fallback", Float) = 0
 		[NoScaleOffset] _MainTex ("Texture", 2D) = "Black" {}
@@ -90,10 +96,10 @@
 
 			CGPROGRAM
 
+			#pragma exclude_renderers d3d11_9x
+			#pragma exclude_renderers d3d9
 			#pragma vertex vert
 			#pragma fragment frag
-			#pragma glsl
-			#pragma target 3.0
 			#pragma shader_feature _EMISSION
 			#pragma multi_compile LIGHTMAP_OFF LIGHTMAP_ON
 			#include "UnityCG.cginc"
@@ -104,6 +110,9 @@
 			#include "Assets/Flimsy Fox/Shaders/common/audio-link/Shaders/AudioLink.cginc"
 			
 			static const float PI = 3.14159265f;
+			static const float numPointLights = 4;
+			static const float numOtherLights = 3; // lightmap, cubemap, ambient
+			static const float numTotalLights = numPointLights + numOtherLights;
 			float test = 232e-9;
 			float _Seed = 124;
 			float2 _Pixel = float2(0,0);
@@ -111,10 +120,9 @@
 			
 			float _Height;
 			float _NumSamples;
-			float _LightMult;
-			float _UberVolumetricMode;
-			int _EnableRefl;
+			//float _UberVolumetricMode;
 			
+			//TODO: Move _Color, _BumpMap, and _EmissionColor into Fallback section; already defined by include files
 			//fixed4 _Color;
 			sampler2D _Albedo;
 			float4 _Albedo_ST;
@@ -150,9 +158,12 @@
 			int _ALBand;
 			float4 _AudioLinkKey;
 			float _AudioLinkKeyRange;
+
+			int _FragDebugMode;
+			int _FragDebugLightIndex;
+			int _FragDebugShadeMode;
 			
 			float3 uNormal;
-			float3 normalTest;
 			
 			struct appdata
 			{
@@ -175,9 +186,7 @@
 				float2 uv : TEXCOORD20;
 				half4 ambientoruvLM : TEXCOORD10;
 				float4 tangent : TANGENT;
-				half3x3 tspace : TEXCOORD30; 
-				float3 worldViewDir : TEXCOORD60;
-				float3 normal : NORMAL;				
+				half3x3 tspace : TEXCOORD30;
 				
 				float4 vertex : POSITION;
 			};
@@ -187,6 +196,17 @@
 				float size;
 				float3 position;
 				float3 intensity;
+			};
+
+			struct FragDebug
+			{
+				float3 albedo;
+				float3 emission;
+				float3 normal;
+				
+				float3 lightingColor[numTotalLights];
+				float3 shadeNormal;
+				float3 shadeNormalDiff;
 			};
 			
 			float clampLoop(float input, float max)
@@ -412,7 +432,8 @@
 				return 1*s*s*s*s;
 			}
 
-			float3 shadeDiffuse(PBRLight light, inout float3 lighting, float3 worldPosition, float3 direction, float diffChance, float3 albedo)
+			float3 shadeDiffuse(PBRLight light, inout float3 lighting, float3 worldPosition, float3 direction, 
+				float diffChance, float3 albedo)
 			{
 				float3 intensity = 0;
 				float2 intersect = sphereIntersect(worldPosition, direction, light.position, light.size);
@@ -420,14 +441,13 @@
 				{
 					intensity = (light.intensity * (1.0f / diffChance) *
 						albedo);
-					lighting += light.intensity;
 				}
 
 				return intensity;
 			}
 
 			float3 shadeSpecular(PBRLight light, inout float3 lighting, float3 worldPosition, float3 normal, float3 direction
-				, float f, float specChance, float3 albedo, float3 specular)
+				, float f, float specChance, float3 specular)
 			{
 				float3 intensity = 0;
 				float2 intersect = sphereIntersect(worldPosition, direction, light.position, light.size);
@@ -435,22 +455,21 @@
 				{
 					intensity = (light.intensity * (1.0f / specChance) * 
 						specular * sdot(normal, direction, f));
-					lighting += light.intensity;
 				}
 				return intensity;
 			}
 
 			float3 traceAndShade(float screenSize, half3 lightmap, inout float3 lighting
 				, float3 worldPosition, float3 normal, float3 tangentNormal, float3x3 tangent, float3 viewDirection
-				, float3 albedo, float3 specular, float3 smoothness)
+				, float3 albedo, float3 specular, float3 smoothness, inout FragDebug fragDebug)
 			{
 				float3 alpha = smoothnessToAlpha(smoothness);
 				alpha.z = 0;
 				float3 direction = sampleSphere(viewDirection, normal, tangentNormal, tangent, alpha);
-				PBRLight lights[7]; //0-3 PointLights; 4 lightmap; 5 cubemap; 6 ambient
+				PBRLight lights[numPointLights+numOtherLights];
 
 				//Point Lights
-				for (int index = 0; index < 4; index++)
+				for (int index = 0; index < numPointLights; index++)
 				{  
 					lights[index].position = float3(unity_4LightPosX0[index], 
 					unity_4LightPosY0[index], 
@@ -492,22 +511,22 @@
 						lightmapColor += realtimeColor;
 					#endif
 				#endif
-				lights[4].intensity = lightmapColor.rgb;
-				lights[4].position = worldPosition + direction;
-				lights[4].size = screenSize;
+				lights[numPointLights].intensity = lightmapColor.rgb;
+				lights[numPointLights].position = worldPosition + direction;
+				lights[numPointLights].size = screenSize;
 
 				//Cubemap
 				float4 reflectionColor = float4(0,0,0,1);
 				reflectionColor = UNITY_SAMPLE_TEXCUBE (unity_SpecCube0, direction);
 				reflectionColor = float4(DecodeHDR(half4(reflectionColor), unity_SpecCube0_HDR), reflectionColor.w);
-				lights[5].intensity = reflectionColor;
-				lights[5].position = worldPosition + direction; //INVESTIGATE: is there a better way to get CubeMap distance in a PBR manner?
-				lights[5].size = screenSize;
+				lights[numPointLights+1].intensity = reflectionColor;
+				lights[numPointLights+1].position = worldPosition + direction; //INVESTIGATE: is there a better way to get CubeMap distance in a PBR manner?
+				lights[numPointLights+1].size = screenSize;
 
 				//Ambient lighting, if no lightmap
-				lights[6].intensity = ambient;
-				lights[6].position = worldPosition;
-				lights[6].size = screenSize;
+				lights[numPointLights+2].intensity = ambient;
+				lights[numPointLights+2].position = worldPosition;
+				lights[numPointLights+2].size = screenSize;
 				
 				float3 intensity = 0;
 				float roulette = rand();
@@ -522,10 +541,14 @@
 				float f = (energy(alpha) + 2) / (energy(alpha) + 1);
 				if(roulette < specChance)
 				{
-					for(int i = 0; i < 7; i++)
+					for(int i = 0; i < numTotalLights; i++)
 					{
-						intensity += shadeSpecular(lights[i], lighting, worldPosition, normal, direction
-							, f, specChance, albedo, specular);
+						float3 lightIntensity = shadeSpecular(lights[i], lighting, worldPosition, normal, 
+							direction, f, specChance, specular);
+						intensity += lightIntensity;
+						lighting += lightIntensity;
+						fragDebug.lightingColor[i] += lightIntensity;
+						fragDebug.shadeNormal += normal;
 					}
 					//intensity += -(direction - normal);
 				}
@@ -533,11 +556,17 @@
 				else
 				{
 
-					for(int i = 0; i < 7; i++)
+					for(int i = 0; i < numTotalLights; i++)
 					{
-						intensity += shadeDiffuse(lights[i], lighting, worldPosition, direction, diffChance, albedo);
+						float3 lightIntensity = shadeDiffuse(lights[i], lighting, worldPosition, direction, 
+							diffChance, albedo);
+						intensity += lightIntensity;
+						lighting += lightIntensity;
+						fragDebug.lightingColor[i] += lightIntensity;
+						fragDebug.shadeNormal += direction;
 					}
 				}
+
 				return intensity;
 			}
 			vertexOutput vert(appdata v)
@@ -561,10 +590,8 @@
 				
 				o.worldPos = mul(unity_ObjectToWorld, v.vertex);
 				o.localPos = v.vertex;
-				o.worldViewDir = (NormalizePerVertexNormal(_WorldSpaceCameraPos - o.worldPos.yxz) + 2)/2 * float3(1,1,1);
 
 				o.tangent = v.tangent;
-				o.normal = v.normal;
 				o.vertex = UnityObjectToClipPos(v.vertex);
 				o.screenPos = ComputeScreenPos(o.vertex);
 				UNITY_TRANSFER_FOG(o,o.vertex);
@@ -582,6 +609,7 @@
 			
 			fixed4 frag (vertexOutput IN) : COLOR
 			{
+				FragDebug fragDebug;
 				float4 albedo;
 				float4 emission;
 				float4 emissionMask;
@@ -640,20 +668,50 @@
 					}
 					}
 				}
-				
+				fragDebug.albedo = albedo.rgb;
+				fragDebug.emission = emission;
+				fragDebug.normal = uNormal;
+
+				for(int i = 0; i < numTotalLights; i++)
+				{
+					fragDebug.lightingColor[i] = 0;
+				}
+				fragDebug.shadeNormal = 0;
+				fragDebug.shadeNormalDiff = 0;
+
 				//PBR shading starts
 				float3 colorOut = float3(0,0,0);
 				float3 lighting = 0;
 				
-				//Hit 1
+				//Ray-Tracing
+				[loop]
 				for(int i = 0; i < _NumSamples; i++)
 				{
 					colorOut += traceAndShade(IN.screenPos.w, IN.ambientoruvLM, lighting
 				, IN.worldPos, uNormal, normal, IN.tspace, viewDirection
-				, albedo, specular, smoothness);
+				, albedo, specular, smoothness, fragDebug);
 				}
+
 				colorOut /= _NumSamples;
 				lighting /= _NumSamples;
+				for(int i = 0; i < numTotalLights; i++)
+				{
+					fragDebug.lightingColor[i] /= _NumSamples;
+				}
+				fragDebug.shadeNormal /= _NumSamples;
+				fragDebug.shadeNormalDiff = ((fragDebug.shadeNormal-fragDebug.normal)+1)/2;
+				if(0.45 < fragDebug.shadeNormalDiff.r > 0.55)
+				{
+					fragDebug.shadeNormalDiff.r = 0.5;
+				}
+				if(0.45 < fragDebug.shadeNormalDiff.g > 0.55)
+				{
+					fragDebug.shadeNormalDiff.g = 0.5;
+				}
+				if(0.45 < fragDebug.shadeNormalDiff.b > 0.55)
+				{
+					fragDebug.shadeNormalDiff.b = 0.5;
+				}
 				
 				float3 glowInTheDark = 1;
 				if(_GlowInTheDarkEnable)
@@ -664,14 +722,55 @@
 				emission.g *= emissionMask.g;
 				emission.b *= emissionMask.b;
 				
-			 	colorOut += emission * emission.a * glowInTheDark;
+			 	colorOut += emission.rgb * emission.a * glowInTheDark;
 				
 				//POST PROCESSING and final calculations
 				UNITY_APPLY_FOG(IN.fogCoord, colorOut);
-			 	//colorOut.a = origAlbedo.a;
-				//colorOut = emission;
-				float alpha = smoothnessToAlpha(smoothness);
-				//colorOut = uNormal;
+
+				switch(_FragDebugMode)
+				{
+				case(100):
+				{
+					break;
+				}
+				case(0):
+				{
+					colorOut = fragDebug.albedo;
+					break;
+				}
+				case(1):
+				{
+					colorOut = fragDebug.emission;
+					break;
+				}
+				case(2):
+				{
+					colorOut = fragDebug.normal;
+					break;
+				}
+				case(3):
+				{
+					colorOut = fragDebug.lightingColor[_FragDebugLightIndex];
+					break;
+				}
+				case(4):
+				{
+					switch(_FragDebugShadeMode)
+					{
+					case(0):
+					{
+						colorOut = fragDebug.shadeNormal;
+						break;
+					}
+					case(1):
+					{
+						colorOut = fragDebug.shadeNormalDiff;
+						break;
+					}
+					}
+					break;
+				}
+				}
 				
 				return fixed4(colorOut, albedo.a);
 			}
