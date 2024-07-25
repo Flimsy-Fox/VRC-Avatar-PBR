@@ -70,9 +70,9 @@
 		
 		[HideInInspector]m_start_Debug("Debug", Float) = 0
 		[HideInInspector]m_start_Frag_Debug("Fragment Shader", Float) = 0
-		[Enum(none, 100, albedo, 0, emission, 1, normal, 2, lighting, 3, shading, 4)] _FragDebugMode("Debug Mode", Float) = 100
+		[Enum(none, 0, albedo, 1, emission, 2, normal, 3, lighting, 4, shading, 5)] _FragDebugMode("Debug Mode", Float) = 100
 		_FragDebugLightIndex ("Light Index", Range(0, 6)) = 0
-		[Enum(shadeNormal, 0, shadeNormalDiff, 1)] _FragDebugShadeMode ("Shade Mode", Float) = 0
+		[Enum(shadeNormal, 0, shadeNormalDiff, 1, shadeEmission, 2)] _FragDebugShadeMode ("Shade Mode", Float) = 0
 		[HideInInspector]m_end_Frag_Debug("Fragment Shader", Float) = 0
 		[HideInInspector]m_end_Debug("Debug", Float) = 0
 
@@ -207,8 +207,94 @@
 				float3 lightingColor[numTotalLights];
 				float3 shadeNormal;
 				float3 shadeNormalDiff;
+				float3 shadeEmission;
 			};
 			
+			FragDebug fragDebugConstruct(float3 albedo, float3 emission, float3 normal)
+			{
+				FragDebug fragDebug = (FragDebug)0;
+				fragDebug.albedo = albedo;
+				fragDebug.emission = emission;
+				fragDebug.normal = normal;
+				return fragDebug;
+			}
+
+			FragDebug fragDebugPost(FragDebug fragDebug, float3 emission)
+			{
+				for(int i = 0; i < numTotalLights; i++)
+				{
+					fragDebug.lightingColor[i] /= _NumSamples;
+				}
+				fragDebug.shadeNormal /= _NumSamples;
+				fragDebug.shadeNormalDiff = ((fragDebug.shadeNormal-fragDebug.normal)+1)/2;
+				if(0.45 < fragDebug.shadeNormalDiff.r > 0.55)
+				{
+					fragDebug.shadeNormalDiff.r = 0.5;
+				}
+				if(0.45 < fragDebug.shadeNormalDiff.g > 0.55)
+				{
+					fragDebug.shadeNormalDiff.g = 0.5;
+				}
+				if(0.45 < fragDebug.shadeNormalDiff.b > 0.55)
+				{
+					fragDebug.shadeNormalDiff.b = 0.5;
+				}
+				fragDebug.shadeEmission = emission;
+				return fragDebug;
+			}
+			float3 displayDebug(float3 colorOut, FragDebug fragDebug)
+			{
+				switch(_FragDebugMode)
+				{
+				case(0):
+				{
+					break;
+				}
+				case(1):
+				{
+					colorOut = fragDebug.albedo;
+					break;
+				}
+				case(2):
+				{
+					colorOut = fragDebug.emission;
+					break;
+				}
+				case(3):
+				{
+					colorOut = fragDebug.normal;
+					break;
+				}
+				case(4):
+				{
+					colorOut = fragDebug.lightingColor[_FragDebugLightIndex];
+					break;
+				}
+				case(5):
+				{
+					switch(_FragDebugShadeMode)
+					{
+					case(0):
+					{
+						colorOut = fragDebug.shadeNormal;
+						break;
+					}
+					case(1):
+					{
+						colorOut = fragDebug.shadeNormalDiff;
+						break;
+					}
+					case(2):
+					{
+						colorOut = fragDebug.shadeEmission.rgb;
+						break;
+					}
+					}
+					break;
+				}
+				}
+				return colorOut;
+			}
 			float clampLoop(float input, float max)
 			{
 				return abs(input) % max;
@@ -668,16 +754,7 @@
 					}
 					}
 				}
-				fragDebug.albedo = albedo.rgb;
-				fragDebug.emission = emission;
-				fragDebug.normal = uNormal;
-
-				for(int i = 0; i < numTotalLights; i++)
-				{
-					fragDebug.lightingColor[i] = 0;
-				}
-				fragDebug.shadeNormal = 0;
-				fragDebug.shadeNormalDiff = 0;
+				fragDebug = fragDebugConstruct(albedo, emission, uNormal);
 
 				//PBR shading starts
 				float3 colorOut = float3(0,0,0);
@@ -691,86 +768,22 @@
 				, IN.worldPos, uNormal, normal, IN.tspace, viewDirection
 				, albedo, specular, smoothness, fragDebug);
 				}
-
 				colorOut /= _NumSamples;
 				lighting /= _NumSamples;
-				for(int i = 0; i < numTotalLights; i++)
-				{
-					fragDebug.lightingColor[i] /= _NumSamples;
-				}
-				fragDebug.shadeNormal /= _NumSamples;
-				fragDebug.shadeNormalDiff = ((fragDebug.shadeNormal-fragDebug.normal)+1)/2;
-				if(0.45 < fragDebug.shadeNormalDiff.r > 0.55)
-				{
-					fragDebug.shadeNormalDiff.r = 0.5;
-				}
-				if(0.45 < fragDebug.shadeNormalDiff.g > 0.55)
-				{
-					fragDebug.shadeNormalDiff.g = 0.5;
-				}
-				if(0.45 < fragDebug.shadeNormalDiff.b > 0.55)
-				{
-					fragDebug.shadeNormalDiff.b = 0.5;
-				}
 				
 				float3 glowInTheDark = 1;
 				if(_GlowInTheDarkEnable)
 				{
-					glowInTheDark *= max(min(lighting - _GlowInTheDarkMax, 1), 0);
+					glowInTheDark *= lerp(0, _GlowInTheDarkMax, emission.rgb-lighting);
 				}
-				emission.r *= emissionMask.r;
-				emission.g *= emissionMask.g;
-				emission.b *= emissionMask.b;
+				emission *= emissionMask;
 				
 			 	colorOut += emission.rgb * emission.a * glowInTheDark;
 				
 				//POST PROCESSING and final calculations
 				UNITY_APPLY_FOG(IN.fogCoord, colorOut);
-
-				switch(_FragDebugMode)
-				{
-				case(100):
-				{
-					break;
-				}
-				case(0):
-				{
-					colorOut = fragDebug.albedo;
-					break;
-				}
-				case(1):
-				{
-					colorOut = fragDebug.emission;
-					break;
-				}
-				case(2):
-				{
-					colorOut = fragDebug.normal;
-					break;
-				}
-				case(3):
-				{
-					colorOut = fragDebug.lightingColor[_FragDebugLightIndex];
-					break;
-				}
-				case(4):
-				{
-					switch(_FragDebugShadeMode)
-					{
-					case(0):
-					{
-						colorOut = fragDebug.shadeNormal;
-						break;
-					}
-					case(1):
-					{
-						colorOut = fragDebug.shadeNormalDiff;
-						break;
-					}
-					}
-					break;
-				}
-				}
+				fragDebug = fragDebugPost(fragDebug, colorOut - albedo);
+				colorOut = displayDebug(colorOut, fragDebug);
 				
 				return fixed4(colorOut, albedo.a);
 			}
