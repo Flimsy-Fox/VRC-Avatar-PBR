@@ -8,8 +8,7 @@
 
 		[HideInInspector] footer_github ("github footer button", Float) = 0
 		
-		[HideInInspector] m_mainOptions("Shader Settings", Float) = 0
-		_NumSamples ("Number of samples", Range(1, 96)) = 32
+		_deltaTime ("deltaTime", Float) = 0.033
 		
 		[HideInInspector]m_start_Albedo("Albedo", Float) = 0
         _Color ("Color", Color) = (1,1,1,1)
@@ -113,13 +112,13 @@
 			static const float numPointLights = 4;
 			static const float numOtherLights = 3; // lightmap, cubemap, ambient
 			static const float numTotalLights = numPointLights + numOtherLights;
-			float test = 232e-9;
+			static const float frametimeTarget = 0.0111;
 			float _Seed = 124;
 			float2 _Pixel = float2(0,0);
 			float3 _WorldPos = float3(123,314,532);
 			
 			float _Height;
-			float _NumSamples;
+			float _deltaTime;
 			//float _UberVolumetricMode;
 			
 			//TODO: Move _Color, _BumpMap, and _EmissionColor into Fallback section; already defined by include files
@@ -219,13 +218,13 @@
 				return fragDebug;
 			}
 
-			FragDebug fragDebugPost(FragDebug fragDebug, float3 emission)
+			FragDebug fragDebugPost(FragDebug fragDebug, float3 emission, int sampleCount)
 			{
 				for(int i = 0; i < numTotalLights; i++)
 				{
-					fragDebug.lightingColor[i] /= _NumSamples;
+					fragDebug.lightingColor[i] /= sampleCount;
 				}
-				fragDebug.shadeNormal /= _NumSamples;
+				fragDebug.shadeNormal /= sampleCount;
 				fragDebug.shadeNormalDiff = ((fragDebug.shadeNormal-fragDebug.normal)+1)/2;
 				if(0.45 < fragDebug.shadeNormalDiff.r > 0.55)
 				{
@@ -786,6 +785,11 @@
 			fixed4 frag (vertexOutput IN) : COLOR
 			{
 				FragDebug fragDebug;
+				if(_deltaTime == 0)
+				{
+					_deltaTime = 0.35;
+				}
+				int sampleCount = max(1,(frametimeTarget/_deltaTime)*32);
 				float4 albedo;
 				float4 emission;
 				float4 emissionMask;
@@ -852,14 +856,14 @@
 				
 				//Ray-Tracing
 				[loop]
-				for(int i = 0; i < _NumSamples; i++)
+				for(int i = 0; i < sampleCount; i++)
 				{
 					colorOut += traceAndShade(IN.screenPos.w, IN.ambientoruvLM, lighting
 				, IN.worldPos, uNormal, normal, IN.tspace, viewDirection
 				, albedo, specular, smoothness, fragDebug);
 				}
-				colorOut /= _NumSamples;
-				lighting /= _NumSamples;
+				colorOut /= sampleCount;
+				lighting /= sampleCount;
 				
 				float3 glowInTheDark = 1;
 				if(_GlowInTheDarkEnable)
@@ -872,7 +876,7 @@
 				
 				//POST PROCESSING and final calculations
 				UNITY_APPLY_FOG(IN.fogCoord, colorOut);
-				fragDebug = fragDebugPost(fragDebug, colorOut - albedo);
+				fragDebug = fragDebugPost(fragDebug, colorOut - albedo, sampleCount);
 				colorOut = displayDebug(colorOut, fragDebug);
 				colorOut = AGXTransform(colorOut);
 				
