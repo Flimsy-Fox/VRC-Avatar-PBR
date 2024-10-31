@@ -70,9 +70,9 @@
 		
 		[HideInInspector]m_start_Debug("Debug", Float) = 0
 		[HideInInspector]m_start_Frag_Debug("Fragment Shader", Float) = 0
-		[Enum(none, 0, albedo, 1, emission, 2, normal, 3, lighting, 4, shading, 5)] _FragDebugMode("Debug Mode", Float) = 100
-		_FragDebugLightIndex ("Light Index", Range(0, 6)) = 0
-		[Enum(shadeNormal, 0, shadeNormalDiff, 1, shadeEmission, 2)] _FragDebugShadeMode ("Shade Mode", Float) = 0
+		[Enum(none, 0, albedo, 0.2, emission, 0.4, normal, 0.6, lighting, 0.8, shading, 1)] _FragDebugMode("Debug Mode", Float) = 100
+		[Enum(point 0, 0, point 1, 0.167, point 2, 0.333, point 3, 0.5, lightmap, 0.667, cubemap, 0.833, ambient, 1)] _FragDebugLightIndex ("Light Index", Range(0, 6)) = 0
+		[Enum(shadeNormal, 0, shadeNormalDiff, 0.5, shadeEmission, 1)] _FragDebugShadeMode ("Shade Mode", Float) = 0
 		[HideInInspector]m_end_Frag_Debug("Fragment Shader", Float) = 0
 		[HideInInspector]m_end_Debug("Debug", Float) = 0
 
@@ -159,9 +159,9 @@
 			float4 _AudioLinkKey;
 			float _AudioLinkKeyRange;
 
-			int _FragDebugMode;
-			int _FragDebugLightIndex;
-			int _FragDebugShadeMode;
+			float _FragDebugMode;
+			float _FragDebugLightIndex;
+			float _FragDebugShadeMode;
 			
 			float3 uNormal;
 			
@@ -244,7 +244,11 @@
 			}
 			float3 displayDebug(float3 colorOut, FragDebug fragDebug)
 			{
-				switch(_FragDebugMode)
+				int fragDebugMode = int(_FragDebugMode*5);
+				int fragDebugLightIndex = int(_FragDebugLightIndex*numTotalLights-1);
+				int fragDebugShadeMode = int(_FragDebugShadeMode*2);
+
+				switch(fragDebugMode)
 				{
 				case(0):
 				{
@@ -267,12 +271,12 @@
 				}
 				case(4):
 				{
-					colorOut = fragDebug.lightingColor[_FragDebugLightIndex];
+					colorOut = fragDebug.lightingColor[fragDebugLightIndex];
 					break;
 				}
 				case(5):
 				{
-					switch(_FragDebugShadeMode)
+					switch(fragDebugShadeMode)
 					{
 					case(0):
 					{
@@ -688,6 +692,12 @@
 				unityAppdata.uv0 = v.uv;
 				float3 vertexWorldNormal = UnityObjectToWorldNormal(v.normal);
 				o.ambientoruvLM = VertexGIForward(unityAppdata, o.worldPos, vertexWorldNormal);
+				if(o.ambientoruvLM.r == 0 &&
+					o.ambientoruvLM.g == 0 &&
+					o.ambientoruvLM.b == 0)
+				{
+					o.ambientoruvLM = half4(0.5,0.5,0.5,1);
+				}
 				
 				TRANSFER_SHADOW(o)
 				return o;
