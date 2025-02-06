@@ -180,14 +180,15 @@
 				float3 worldPos : TEXCOORD0;
 				float3 localPos : TEXCOORD1;
 				float4 screenPos : TEXCOORD5;
+				float4 vertex : POSITION;
+				float2 uv : TEXCOORD20;
+				float4 tangent : TANGENT;
+
+				half3x3 tspace : TEXCOORD30;
+				half4 ambientoruvLM : TEXCOORD10;
+
 				SHADOW_COORDS(10)
 				UNITY_FOG_COORDS(15)
-				float2 uv : TEXCOORD20;
-				half4 ambientoruvLM : TEXCOORD10;
-				float4 tangent : TANGENT;
-				half3x3 tspace : TEXCOORD30;
-				
-				float4 vertex : POSITION;
 			};
 
 			struct PBRLight
@@ -199,14 +200,14 @@
 
 			struct FragDebug
 			{
-				float3 albedo;
-				float3 emission;
-				float3 normal;
+				half3 albedo;
+				half3 emission;
+				half3 normal;
 				
-				float3 lightingColor[numTotalLights];
-				float3 shadeNormal;
-				float3 shadeNormalDiff;
-				float3 shadeEmission;
+				half3 lightingColor[numTotalLights];
+				half3 shadeNormal;
+				half3 shadeNormalDiff;
+				half3 shadeEmission;
 			};
 			
 			FragDebug fragDebugConstruct(float3 albedo, float3 emission, float3 normal)
@@ -463,45 +464,69 @@
 			}
 
 			//TODO: To sphere or to hemisphere?
-			float3 sampleSphere(float3 eyeVector, float3 normal, float3 tangentNormal, float3x3 tangent, float3 alpha)
+			float3 sampleSphere(float3 viewDirection, float3 normal, float3 alpha)
 			{
-				float3 viewDirection;
-				float3 sphereSample = lerp(0,rand()*4*PI-2*PI,alpha);
-				float d=2;
-				for(int i = 0; i < 10; i++)
-				{
-					if(d>1)
-					{
-						sphereSample.x = lerp(0,rand()*4*PI-2*PI,alpha.x);
-						sphereSample.y = lerp(0,rand()*4*PI-2*PI,alpha.y);
-						sphereSample.z = lerp(0,rand()*4*PI-2*PI,alpha.z);
-						d = sqrt(pow(sphereSample.x, 2)+pow(sphereSample.y,2)+pow(sphereSample.z,2));
-					}
-				}
-				normalize(sphereSample);
+				// Define PI if not already defined
+				#ifndef PI
+				#define PI 3.141592653589793
+				#endif
 
-				//DEBUG: Should the Z and X axis be swapped in the ZX-plane?
-				float2 normalXY = normal.xy;
-				float2 normalYZ = normal.yz;
-				float2 normalZX = normal.zx;
-				float3 normalAngles = float3(atan2(normalYZ.y,normalYZ.x), atan2(normalZX.y,normalZX.x), atan2(normalXY.y,normalXY.x));
-
-				float2 sphereXY = sphereSample.xy;
-				float2 sphereYZ = sphereSample.yz;
-				float2 sphereZX = sphereSample.zx;
-				float3 sphereAngles = normalAngles - float3(atan2(sphereYZ.y,sphereYZ.x), atan2(sphereZX.y,sphereZX.x), atan2(sphereXY.y,sphereXY.x));
-
-				float3 wi = -eyeVector;
-				float2 wiXY = wi.xy;
-				float2 wiYZ = wi.yz;
-				float2 wiZX = wi.zx;
-				float3 wiAngles = float3(vectorAngle2(wiYZ), vectorAngle2(wiZX), vectorAngle2(wiXY));
+				// Generate orthogonal tangent and bitangent vectors
+				float3 tangent;
 				
-				normal = mul(unity_WorldToObject, normal);
-				//viewDirection = rotateVector(normal, sphereAngles);
-				viewDirection = UnityObjectToWorldNormal(normalize(normal + sphereSample));
+				// Handle vertical normals to avoid cross product issues
+				if (abs(normal.y) > 0.999)
+					tangent = normalize(cross(normal, float3(1, 0, 0)));
+				else
+					tangent = normalize(cross(normal, float3(0, 1, 0)));
+				
+				float3 bitangent = normalize(cross(normal, tangent));
 
-				return viewDirection;
+				// Generate random angles scaled by weights
+				float angleX = (2 * rand() - 1) * PI * alpha.x;
+				float angleY = (2 * rand() - 1) * PI * alpha.y;
+				float angleZ = (2 * rand() - 1) * PI * alpha.z;
+
+				// Create individual rotation matrices
+				float sinX = sin(angleX);
+				float cosX = cos(angleX);
+				float3x3 rotX = float3x3(
+					1, 0, 0,
+					0, cosX, -sinX,
+					0, sinX, cosX
+				);
+
+				float sinY = sin(angleY);
+				float cosY = cos(angleY);
+				float3x3 rotY = float3x3(
+					cosY, 0, sinY,
+					0, 1, 0,
+					-sinY, 0, cosY
+				);
+
+				float sinZ = sin(angleZ);
+				float cosZ = cos(angleZ);
+				float3x3 rotZ = float3x3(
+					cosZ, -sinZ, 0,
+					sinZ, cosZ, 0,
+					0, 0, 1
+				);
+
+				// Combine rotations in ZYX order
+				float3x3 rotation = mul(rotZ, mul(rotY, rotX));
+
+				// Create transformation matrices
+				float3x3 localToWorld = float3x3(tangent, bitangent, normal);
+				float3x3 worldToLocal = transpose(localToWorld);
+
+				// Transform vector to tangent space
+				float3 localViewDirection = mul(worldToLocal, viewDirection);
+				
+				// Apply combined rotation
+				float3 rotatedLocal = mul(rotation, localViewDirection);
+				
+				// Transform back to world space
+				return mul(localToWorld, rotatedLocal);
 			}
 
 			float2 sphereIntersect( in float3 ro, in float3 rd, in float3 ce, float ra )
@@ -549,12 +574,15 @@
 			}
 
 			float3 traceAndShade(float screenSize, half3 lightmap, inout float3 lighting
-				, float3 worldPosition, float3 normal, float3 tangentNormal, float3x3 tangent, float3 viewDirection
+				, float3 worldPosition, float3 normal, float3 viewDirection
 				, float3 albedo, float3 specular, float3 smoothness, inout FragDebug fragDebug)
 			{
 				float3 alpha = smoothnessToAlpha(smoothness);
 				alpha.z = 0;
-				float3 direction = sampleSphere(viewDirection, normal, tangentNormal, tangent, alpha);
+
+				//TODO: Debug using Debug normal mode
+				float3 direction = sampleSphere(viewDirection, normal, alpha);
+				
 				PBRLight lights[numPointLights+numOtherLights];
 
 				//Point Lights
@@ -565,7 +593,7 @@
 					unity_4LightPosZ0[index]);    //TODO: fast inverse matrix
 					//lights[index].position = mul(unity_ObjectToWorld, lights[index].position).xyz;
 					lights[index].intensity = unity_LightColor[index].rgb;
-					lights[index].size = 1; //TODO: get actual light size
+					lights[index].size = (0.005 * sqrt(1000000.0 - unity_4LightAtten0.x)) / sqrt(unity_4LightAtten0.x);
 
 				}
 
@@ -859,7 +887,7 @@
 				for(int i = 0; i < sampleCount; i++)
 				{
 					colorOut += traceAndShade(IN.screenPos.w, IN.ambientoruvLM, lighting
-				, IN.worldPos, uNormal, normal, IN.tspace, viewDirection
+				, IN.worldPos, uNormal, viewDirection
 				, albedo, specular, smoothness, fragDebug);
 				}
 				colorOut /= sampleCount;
@@ -868,7 +896,7 @@
 				float3 glowInTheDark = 1;
 				if(_GlowInTheDarkEnable)
 				{
-					glowInTheDark *= lerp(0, _GlowInTheDarkMax, emission.rgb-lighting);
+					glowInTheDark *= 1-min(lighting.rgb, _GlowInTheDarkMax)/_GlowInTheDarkMax;
 				}
 				emission *= emissionMask;
 				
