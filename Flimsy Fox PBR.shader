@@ -575,10 +575,11 @@
 
 			float3 traceAndShade(float screenSize, half3 lightmap, inout float3 lighting
 				, float3 worldPosition, float3 normal, float3 viewDirection
-				, float3 albedo, float3 specular, float3 smoothness, inout FragDebug fragDebug)
+				, float3 albedo, float3 specular, float3 alpha, inout FragDebug fragDebug)
 			{
-				float3 alpha = smoothnessToAlpha(smoothness);
-				alpha.z = 0;
+				//float3 alpha = smoothnessToAlpha(smoothness);
+				//float3 alpha = smoothness;
+				//alpha.z = 0;
 
 				//TODO: Debug using Debug normal mode
 				float3 direction = sampleSphere(-viewDirection, normal, alpha);
@@ -845,6 +846,8 @@
 				float3 roughness = tex2D (_Roughness, IN.uv);
 				roughness *= _RoughnessMult + _RoughnessAdd;
 				float3 smoothness = lerp(roughness, 1 - roughness, _SmoothnessToggle);
+				//assume smoothness does not define transmission
+				smoothness/=2;
 				
 				specular = min(specular * _SpecularMult + _SpecularAdd, 1);
 				
