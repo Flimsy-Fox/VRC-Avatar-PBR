@@ -581,7 +581,7 @@
 				alpha.z = 0;
 
 				//TODO: Debug using Debug normal mode
-				float3 direction = sampleSphere(viewDirection, normal, alpha);
+				float3 direction = sampleSphere(-viewDirection, normal, alpha);
 				
 				PBRLight lights[numPointLights+numOtherLights];
 
