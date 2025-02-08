@@ -67,6 +67,12 @@
 		[HideInInspector]m_end_AL_colorkey("Color Key", Float) = 0
 		[HideInInspector]m_end_AudioLink("AudioLink", Float) = 0
 		
+		[HideInInspector]m_start_Post("Post Processing", Float) = 0
+		[Toggle(_)]_enableDenoise("Enable Denoising", Float) = 1
+		[HideInInspector]_denoiseTexture ("Denoising Texture", 2D) = "black" {}
+		[Toggle(_)]_enableAGX("Enable AGX", Float) = 1
+		[HideInInspector]m_end_Post("Post Processing", Float) = 0
+
 		[HideInInspector]m_start_Debug("Debug", Float) = 0
 		[HideInInspector]m_start_Frag_Debug("Fragment Shader", Float) = 0
 		[Enum(none, 0, albedo, 0.2, emission, 0.4, normal, 0.6, lighting, 0.8, shading, 1)] _FragDebugMode("Debug Mode", Float) = 100
@@ -158,6 +164,10 @@
 			float4 _AudioLinkKey;
 			float _AudioLinkKeyRange;
 
+			int _enableDenoise;
+			sampler2D _denoiseTexture;
+			int _enableAGX;
+
 			float _FragDebugMode;
 			float _FragDebugLightIndex;
 			float _FragDebugShadeMode;
@@ -175,7 +185,7 @@
 				float2 texcoord1 : TEXCOORD1;
 			};
 			
-			struct vertexOutput
+			struct VertexOutput
 			{
 				float3 worldPos : TEXCOORD0;
 				float3 localPos : TEXCOORD1;
@@ -767,9 +777,97 @@
 				return color;
 			}
 
-			vertexOutput vert(appdata v)
+			float denoiseStrength = 3.0f;
+
+			float3 denoise(float2 uv) 
 			{
-				vertexOutput o;
+				int2 offset[25];
+				offset[0] = int2(-2,-2);
+				offset[1] = int2(-1,-2);
+				offset[2] = int2(0,-2);
+				offset[3] = int2(1,-2);
+				offset[4] = int2(2,-2);
+				
+				offset[5] = int2(-2,-1);
+				offset[6] = int2(-1,-1);
+				offset[7] = int2(0,-1);
+				offset[8] = int2(1,-1);
+				offset[9] = int2(2,-1);
+				
+				offset[10] = int2(-2,0);
+				offset[11] = int2(-1,0);
+				offset[12] = int2(0,0);
+				offset[13] = int2(1,0);
+				offset[14] = int2(2,0);
+				
+				offset[15] = int2(-2,1);
+				offset[16] = int2(-1,1);
+				offset[17] = int2(0,1);
+				offset[18] = int2(1,1);
+				offset[19] = int2(2,1);
+				
+				offset[20] = int2(-2,2);
+				offset[21] = int2(-1,2);
+				offset[22] = int2(0,2);
+				offset[23] = int2(1,2);
+				offset[24] = int2(2,2);
+				
+				
+				float kernel[25];
+				kernel[0] = 1.0f/256.0f;
+				kernel[1] = 1.0f/64.0f;
+				kernel[2] = 3.0f/128.0f;
+				kernel[3] = 1.0f/64.0f;
+				kernel[4] = 1.0f/256.0f;
+				
+				kernel[5] = 1.0f/64.0f;
+				kernel[6] = 1.0f/16.0f;
+				kernel[7] = 3.0f/32.0f;
+				kernel[8] = 1.0f/16.0f;
+				kernel[9] = 1.0f/64.0f;
+				
+				kernel[10] = 3.0f/128.0f;
+				kernel[11] = 3.0f/32.0f;
+				kernel[12] = 9.0f/64.0f;
+				kernel[13] = 3.0f/32.0f;
+				kernel[14] = 3.0f/128.0f;
+				
+				kernel[15] = 1.0f/64.0f;
+				kernel[16] = 1.0f/16.0f;
+				kernel[17] = 3.0f/32.0f;
+				kernel[18] = 1.0f/16.0f;
+				kernel[19] = 1.0f/64.0f;
+				
+				kernel[20] = 1.0f/256.0f;
+				kernel[21] = 1.0f/64.0f;
+				kernel[22] = 3.0f/128.0f;
+				kernel[23] = 1.0f/64.0f;
+				kernel[24] = 1.0f/256.0f;
+				
+				float3 sum = float3(0,0,0);
+				float c_phi = 1.0;
+				float4 cval = tex2D(_denoiseTexture, uv);
+				
+				float cum_w = 0.0;
+				for(int i=0; i<25; i++)
+				{
+					float2 sampleUV = uv+offset[i]*denoiseStrength;
+					
+					float3 ctmp = tex2D(_denoiseTexture, sampleUV).rgb * tex2D(_denoiseTexture, sampleUV).a;
+					float3 t = cval - ctmp;
+					float dist2 = dot(t,t);
+					float c_w = min(exp(-(dist2)/c_phi), 1.0);
+					
+					float weight = c_w;
+					sum += ctmp*weight*kernel[i];
+					cum_w += weight*kernel[i];
+				}
+				return sum/cum_w;
+			}
+
+			VertexOutput vert(appdata v)
+			{
+				VertexOutput o;
 				o.uv = v.uv;
 				
                 // world space normal
@@ -811,7 +909,7 @@
 				return o;
 			}
 			
-			fixed4 frag (vertexOutput IN) : COLOR
+			fixed4 frag (VertexOutput IN) : COLOR
 			{
 				FragDebug fragDebug;
 				if(_deltaTime == 0)
