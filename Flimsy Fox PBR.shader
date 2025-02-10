@@ -68,7 +68,7 @@
 		[HideInInspector]m_end_AudioLink("AudioLink", Float) = 0
 		
 		[HideInInspector]m_start_Post("Post Processing", Float) = 0
-		[Toggle(_)]_enableDenoise("Enable Denoising", Float) = 1
+		[Toggle(_)]_enableDenoise("Enable Denoising", Float) = 0
 		[HideInInspector]_denoiseTexture ("Denoising Texture", 2D) = "black" {}
 		[Toggle(_)]_enableAGX("Enable AGX", Float) = 1
 		[HideInInspector]m_end_Post("Post Processing", Float) = 0
@@ -779,7 +779,7 @@
 
 			float denoiseStrength = 3.0f;
 
-			float3 denoise(float2 uv) 
+			float3 denoise(float2 denoiseUV, sampler2D denoiseTexture) 
 			{
 				int2 offset[25];
 				offset[0] = int2(-2,-2);
@@ -846,14 +846,14 @@
 				
 				float3 sum = float3(0,0,0);
 				float c_phi = 1.0;
-				float4 cval = tex2D(_denoiseTexture, uv);
+				float4 cval = tex2D(denoiseTexture, denoiseUV);
 				
 				float cum_w = 0.0;
 				for(int i=0; i<25; i++)
 				{
-					float2 sampleUV = uv+offset[i]*denoiseStrength;
+					float2 sampleUV = denoiseUV+offset[i]*denoiseStrength;
 					
-					float3 ctmp = tex2D(_denoiseTexture, sampleUV).rgb * tex2D(_denoiseTexture, sampleUV).a;
+					float3 ctmp = tex2D(denoiseTexture, sampleUV).rgb * tex2D(denoiseTexture, sampleUV).a;
 					float3 t = cval - ctmp;
 					float dist2 = dot(t,t);
 					float c_w = min(exp(-(dist2)/c_phi), 1.0);
@@ -1004,10 +1004,21 @@
 			 	colorOut += emission.rgb * emission.a * glowInTheDark;
 				
 				//POST PROCESSING and final calculations
+				if(_enableDenoise)
+				{
+					colorOut = denoise(screenUV, _denoiseTexture);
+				}
 				UNITY_APPLY_FOG(IN.fogCoord, colorOut);
 				fragDebug = fragDebugPost(fragDebug, colorOut - albedo, sampleCount);
 				colorOut = displayDebug(colorOut, fragDebug);
-				colorOut = AGXTransform(colorOut);
+				if(_FragDebugMode < 0.001 && _enableAGX)
+				{
+					#if defined(UNITY_USE_DEBUG_COLORS) || defined(UNITY_DEBUG_DISPLAY)
+
+					#else
+					colorOut = AGXTransform(colorOut);
+					#endif
+				}
 				
 				return fixed4(colorOut, albedo.a);
 			}
