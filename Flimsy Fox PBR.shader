@@ -82,7 +82,10 @@
 		[HideInInspector]m_end_Debug("Debug", Float) = 0
 
 		[HideInInspector]m_start_Fallback("Fallback", Float) = 0
+		[NoScaleOffset] _Color ("Texture", 2D) = "Black" {}
 		[NoScaleOffset] _MainTex ("Texture", 2D) = "Black" {}
+		[NoScaleOffset] _EmissionColor ("Texture", 2D) = "Black" {}
+		[NoScaleOffset] _BumpMap ("Texture", 2D) = "Black" {}
 		[NoScaleOffset] _OcclusionMap("Occlusion", 2D) = "white" {}
 		[HideInInspector]m_end_Fallback("Fallback", Float) = 0
     }
@@ -127,8 +130,6 @@
 			float _deltaTime;
 			//float _UberVolumetricMode;
 			
-			//TODO: Move _Color, _BumpMap, and _EmissionColor into Fallback section; already defined by include files
-			//fixed4 _Color;
 			sampler2D _Albedo;
 			float4 _Albedo_ST;
 			
@@ -142,14 +143,12 @@
 			float _RoughnessAdd;
 			
 			int _EnableBumpMap;
-			//sampler2D _BumpMap;
 			int _EnableNormal1;
 			sampler2D _Normal1;
 			int _EnableDisplacement;
 			float _DisplacementMult;
 			sampler2D _HeightMap;
 			
-			//fixed4 _EmissionColor;
 			sampler2D _Emission;
 			sampler2D _EmissionMask;
 			float _EmissionStrength;
@@ -616,7 +615,7 @@
 					ambient = 0;
 					lightmapUV = lightmap;
 				#else
-					ambient = lightmap.rgb;
+					ambient = ShadeSH9(float4(direction, 1)); //Likely band-aid solution; review before RC1.
 					lightmapUV = 0;
 				#endif
 				#if defined(LIGHTMAP_ON)
@@ -648,8 +647,8 @@
 				reflectionColor = UNITY_SAMPLE_TEXCUBE (unity_SpecCube0, direction);
 				reflectionColor = float4(DecodeHDR(half4(reflectionColor), unity_SpecCube0_HDR), reflectionColor.w);
 				lights[numPointLights+1].intensity = reflectionColor;
-				lights[numPointLights+1].position = worldPosition + direction; //INVESTIGATE: is there a better way to get CubeMap distance in a PBR manner?
-				lights[numPointLights+1].size = screenSize;
+				lights[numPointLights+1].position = unity_SpecCube0_ProbePosition;
+				lights[numPointLights+1].size = unity_SpecCube0_ProbePosition.w;
 
 				//Ambient lighting, if no lightmap
 				lights[numPointLights+2].intensity = ambient;
