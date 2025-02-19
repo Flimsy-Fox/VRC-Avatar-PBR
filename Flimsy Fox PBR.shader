@@ -1,4 +1,4 @@
-﻿Shader "Flimsy Fox/PBR 1.3.0a Opaque"
+﻿Shader "Flimsy Fox/PBR 1.3.0b Opaque"
 {
     Properties
     {
@@ -7,8 +7,6 @@
 		[HideInInspector] shader_properties_label_file("FFOXLabels", Float) = 0
 
 		[HideInInspector] footer_github ("github footer button", Float) = 0
-		
-		_deltaTime ("deltaTime", Float) = 0.033
 		
 		[HideInInspector]m_start_Albedo("Albedo", Float) = 0
         _Color ("Color", Color) = (1,1,1,1)
@@ -127,7 +125,6 @@
 			float3 _WorldPos = float3(123,314,532);
 			
 			float _Height;
-			float _deltaTime;
 			//float _UberVolumetricMode;
 			
 			sampler2D _Albedo;
@@ -911,11 +908,12 @@
 			fixed4 frag (VertexOutput IN) : COLOR
 			{
 				FragDebug fragDebug;
-				if(_deltaTime == 0)
+				float frametime = 1/AudioLinkData( ALPASS_GENERALVU + uint2( 1, 0 )).x;
+				if(frametime < 0.0001)
 				{
-					_deltaTime = 0.35;
+					frametime = 0.0167;
 				}
-				int sampleCount = max(1,(frametimeTarget/_deltaTime)*32);
+				int sampleCount = max(1,(frametimeTarget/frametime)*32);
 				float4 albedo;
 				float4 emission;
 				float4 emissionMask;
